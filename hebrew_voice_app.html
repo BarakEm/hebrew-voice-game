@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#f0f8ff">
+    <title>Hebrew Voice Game</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        html, body {
+            height: 100%;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        }
+
+        body {
+            background-color: #f0f8ff;
+            display: flex;
+            flex-direction: column;
+            padding: 4vmin;
+            gap: 3vmin;
+        }
+
+        /* Mode Selection Screen */
+        .mode-screen {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            gap: 3vmin;
+        }
+
+        .mode-title {
+            text-align: center;
+            font-size: clamp(24px, 8vmin, 60px);
+            font-weight: bold;
+            color: #6495ed;
+            padding: 2vmin 0;
+        }
+
+        .mode-buttons {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 3vmin;
+        }
+
+        .mode-button {
+            flex: 1;
+            border: none;
+            border-radius: 30px;
+            font-size: clamp(18px, 5vmin, 40px);
+            font-weight: bold;
+            color: white;
+            cursor: pointer;
+            box-shadow: 6px 6px 0 rgba(100, 100, 100, 0.4);
+            border: 4px solid white;
+            transition: transform 0.1s ease;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 1vmin;
+        }
+
+        .mode-button:active {
+            transform: scale(0.98);
+        }
+
+        .mode-button .icon {
+            font-size: clamp(30px, 10vmin, 80px);
+        }
+
+        .mode-button.free-speech { background-color: #32cd32; }
+        .mode-button.spelling { background-color: #ff6b6b; }
+        .mode-button.translation { background-color: #4ecdc4; }
+        .mode-button.disabled {
+            background-color: #ccc;
+            opacity: 0.6;
+        }
+
+        /* Game Screen */
+        .game-screen {
+            display: none;
+            flex-direction: column;
+            height: 100%;
+            gap: 3vmin;
+        }
+
+        .game-screen.active {
+            display: flex;
+        }
+
+        .mode-screen.hidden {
+            display: none;
+        }
+
+        /* Top bar with back button and language toggle */
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 2vmin;
+        }
+
+        .back-button {
+            background: #6495ed;
+            color: white;
+            border: none;
+            border-radius: 15px;
+            padding: 2vmin 4vmin;
+            font-size: clamp(16px, 4vmin, 28px);
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 3px 3px 0 rgba(100, 100, 100, 0.3);
+        }
+
+        .back-button:active {
+            transform: scale(0.95);
+        }
+
+        .lang-toggle {
+            display: flex;
+            background: white;
+            border-radius: 25px;
+            padding: 0.5vmin;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .lang-btn {
+            padding: 2vmin 4vmin;
+            border: none;
+            border-radius: 20px;
+            font-size: clamp(14px, 3.5vmin, 24px);
+            font-weight: bold;
+            cursor: pointer;
+            background: transparent;
+            color: #666;
+            transition: all 0.2s ease;
+        }
+
+        .lang-btn.active {
+            background: #6495ed;
+            color: white;
+        }
+
+        /* Display area */
+        .display-area {
+            flex: 1;
+            background: white;
+            border-radius: 30px;
+            border: 5px solid #6495ed;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            min-height: 0;
+        }
+
+        .display-text {
+            font-size: clamp(24px, 12vmin, 120px);
+            font-weight: bold;
+            text-align: center;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            max-width: 100%;
+        }
+
+        .text-blue { color: #6495ed; }
+        .text-red { color: #ff5050; }
+        .text-yellow { color: #daa520; }
+        .text-black { color: #000; }
+        .text-green { color: #32cd32; }
+
+        /* Button area */
+        .button-area {
+            height: 22vh;
+            min-height: 80px;
+        }
+
+        .big-button {
+            width: 100%;
+            height: 100%;
+            border: none;
+            border-radius: 40px;
+            font-size: clamp(20px, 6vmin, 48px);
+            font-weight: bold;
+            color: white;
+            cursor: pointer;
+            position: relative;
+            outline: none;
+            transition: transform 0.1s ease;
+            box-shadow: 8px 8px 0 rgba(100, 100, 100, 0.5);
+            border: 6px solid white;
+        }
+
+        .big-button:active {
+            transform: scale(0.98);
+        }
+
+        .button-ready { background-color: #32cd32; }
+        .button-recording {
+            background-color: #ff5050;
+            animation: pulse 0.5s ease-in-out infinite alternate;
+        }
+        .button-processing {
+            background-color: #ffd700;
+            animation: pulse 0.5s ease-in-out infinite alternate;
+        }
+
+        @keyframes pulse {
+            from { transform: scale(1); }
+            to { transform: scale(1.03); }
+        }
+
+        /* Error banner */
+        .error-banner {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: #ff5050;
+            color: white;
+            padding: 15px;
+            text-align: center;
+            font-size: 18px;
+            display: none;
+            z-index: 100;
+        }
+
+        .error-banner.show {
+            display: block;
+        }
+
+        /* Speaker button for TTS */
+        .speaker-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #6495ed;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: clamp(40px, 8vmin, 60px);
+            height: clamp(40px, 8vmin, 60px);
+            font-size: clamp(20px, 5vmin, 36px);
+            cursor: pointer;
+            display: none;
+        }
+
+        .speaker-btn.visible {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .display-area {
+            position: relative;
+        }
+    </style>
+</head>
+<body>
+    <div id="errorBanner" class="error-banner"></div>
+
+    <!-- Mode Selection Screen -->
+    <div id="modeScreen" class="mode-screen">
+        <div class="mode-title" id="modeTitle">בחר משחק</div>
+        <div class="mode-buttons">
+            <button class="mode-button free-speech" onclick="startMode('free-speech')">
+                <span class="icon">🎤</span>
+                <span id="freeSpeechLabel">דיבור חופשי</span>
+            </button>
+            <button class="mode-button spelling disabled" onclick="startMode('spelling')">
+                <span class="icon">📝</span>
+                <span id="spellingLabel">איות (בקרוב)</span>
+            </button>
+            <button class="mode-button translation disabled" onclick="startMode('translation')">
+                <span class="icon">🌍</span>
+                <span id="translationLabel">תרגום (בקרוב)</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Free Speech Game Screen -->
+    <div id="gameScreen" class="game-screen">
+        <div class="top-bar">
+            <button class="back-button" onclick="goBack()">← חזרה</button>
+            <div class="lang-toggle">
+                <button class="lang-btn active" id="btnHebrew" onclick="setLanguage('hebrew')">עברית</button>
+                <button class="lang-btn" id="btnEnglish" onclick="setLanguage('english')">English</button>
+            </div>
+        </div>
+
+        <div class="display-area">
+            <button id="speakerBtn" class="speaker-btn" onclick="speakText()">🔊</button>
+            <div id="displayText" class="display-text text-blue">אמור משהו בעברית!</div>
+        </div>
+
+        <div class="button-area">
+            <button id="mainButton" class="big-button button-ready">לחץ לדבר!</button>
+        </div>
+    </div>
+
+    <script>
+        // ===========================================
+        // LANGUAGE CONFIGURATION
+        // ===========================================
+        const LANGUAGES = {
+            hebrew: {
+                code: 'he-IL',
+                dir: 'rtl',
+                text: {
+                    SELECT_MODE: 'בחר משחק',
+                    FREE_SPEECH: 'דיבור חופשי',
+                    SPELLING: 'איות (בקרוב)',
+                    TRANSLATION: 'תרגום (בקרוב)',
+                    BACK: '← חזרה',
+                    TAP_TO_SPEAK: 'לחץ לדבר!',
+                    RECORDING: 'מקליט... (לחץ לעצירה)',
+                    PROCESSING: 'מעבד...',
+                    LISTENING: 'מקשיב...',
+                    THINKING: 'חושב...',
+                    SAY_SOMETHING: 'אמור משהו בעברית!',
+                    NOT_UNDERSTOOD: 'לא הבנתי',
+                    NETWORK_ERROR: 'שגיאת רשת',
+                    NOT_SUPPORTED: 'הדפדפן לא תומך בזיהוי קול',
+                    NEED_PERMISSION: 'נדרשת הרשאת מיקרופון'
+                }
+            },
+            english: {
+                code: 'en-US',
+                dir: 'ltr',
+                text: {
+                    SELECT_MODE: 'Select Game',
+                    FREE_SPEECH: 'Free Speech',
+                    SPELLING: 'Spelling (Coming Soon)',
+                    TRANSLATION: 'Translation (Coming Soon)',
+                    BACK: '← Back',
+                    TAP_TO_SPEAK: 'Tap to Speak!',
+                    RECORDING: 'Recording... (tap to stop)',
+                    PROCESSING: 'Processing...',
+                    LISTENING: 'Listening...',
+                    THINKING: 'Thinking...',
+                    SAY_SOMETHING: 'Say something in English!',
+                    NOT_UNDERSTOOD: "Didn't understand",
+                    NETWORK_ERROR: 'Network error',
+                    NOT_SUPPORTED: 'Browser does not support speech recognition',
+                    NEED_PERMISSION: 'Microphone permission required'
+                }
+            }
+        };
+
+        // ===========================================
+        // STATE
+        // ===========================================
+        let currentLang = 'hebrew';
+        let currentMode = null;
+        let state = 'ready';
+        let recognition = null;
+        let recordingTimeout = null;
+        let isRecognitionActive = false;
+        let lastRecognizedText = '';
+
+        const MAX_RECORDING_TIME = 10000;
+
+        // ===========================================
+        // ELEMENTS
+        // ===========================================
+        const modeScreen = document.getElementById('modeScreen');
+        const gameScreen = document.getElementById('gameScreen');
+        const modeTitle = document.getElementById('modeTitle');
+        const freeSpeechLabel = document.getElementById('freeSpeechLabel');
+        const spellingLabel = document.getElementById('spellingLabel');
+        const translationLabel = document.getElementById('translationLabel');
+        const displayText = document.getElementById('displayText');
+        const mainButton = document.getElementById('mainButton');
+        const errorBanner = document.getElementById('errorBanner');
+        const btnHebrew = document.getElementById('btnHebrew');
+        const btnEnglish = document.getElementById('btnEnglish');
+        const speakerBtn = document.getElementById('speakerBtn');
+        const backButton = document.querySelector('.back-button');
+
+        // ===========================================
+        // TEXT-TO-SPEECH
+        // ===========================================
+        const synth = window.speechSynthesis;
+
+        function speakText() {
+            if (!lastRecognizedText || !synth) return;
+
+            synth.cancel();
+            const utterance = new SpeechSynthesisUtterance(lastRecognizedText);
+            utterance.lang = LANGUAGES[currentLang].code;
+            utterance.rate = 0.8;
+            synth.speak(utterance);
+        }
+
+        // ===========================================
+        // LANGUAGE FUNCTIONS
+        // ===========================================
+        function getText(key) {
+            return LANGUAGES[currentLang].text[key];
+        }
+
+        function setLanguage(lang) {
+            currentLang = lang;
+            const langConfig = LANGUAGES[lang];
+
+            // Update document direction
+            document.documentElement.lang = lang === 'hebrew' ? 'he' : 'en';
+            document.documentElement.dir = langConfig.dir;
+
+            // Update toggle buttons
+            btnHebrew.classList.toggle('active', lang === 'hebrew');
+            btnEnglish.classList.toggle('active', lang === 'english');
+
+            // Update UI text
+            updateUIText();
+
+            // Reinitialize speech recognition with new language
+            initSpeechRecognition();
+
+            // Reset state
+            if (state !== 'ready') {
+                stopRecording();
+            }
+            setState('ready');
+        }
+
+        function updateUIText() {
+            // Mode screen
+            modeTitle.textContent = getText('SELECT_MODE');
+            freeSpeechLabel.textContent = getText('FREE_SPEECH');
+            spellingLabel.textContent = getText('SPELLING');
+            translationLabel.textContent = getText('TRANSLATION');
+
+            // Game screen
+            backButton.textContent = getText('BACK');
+
+            // Update based on current state
+            if (state === 'ready') {
+                displayText.textContent = getText('SAY_SOMETHING');
+                mainButton.textContent = getText('TAP_TO_SPEAK');
+            }
+        }
+
+        // ===========================================
+        // MODE NAVIGATION
+        // ===========================================
+        function startMode(mode) {
+            if (mode === 'spelling' || mode === 'translation') {
+                // Coming soon
+                return;
+            }
+
+            currentMode = mode;
+            modeScreen.classList.add('hidden');
+            gameScreen.classList.add('active');
+            setState('ready');
+        }
+
+        function goBack() {
+            if (isRecognitionActive) {
+                stopRecording();
+            }
+            currentMode = null;
+            lastRecognizedText = '';
+            speakerBtn.classList.remove('visible');
+            gameScreen.classList.remove('active');
+            modeScreen.classList.remove('hidden');
+        }
+
+        // ===========================================
+        // SPEECH RECOGNITION
+        // ===========================================
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+        function initSpeechRecognition() {
+            if (!SpeechRecognition) {
+                showError(getText('NOT_SUPPORTED') + ' - Use Chrome');
+                return;
+            }
+
+            // Stop existing recognition
+            if (recognition) {
+                try {
+                    recognition.abort();
+                } catch (e) {}
+            }
+
+            recognition = new SpeechRecognition();
+            recognition.lang = LANGUAGES[currentLang].code;
+            recognition.continuous = false;
+            recognition.interimResults = true;
+            recognition.maxAlternatives = 1;
+
+            recognition.onstart = () => {
+                console.log('Recognition started');
+                isRecognitionActive = true;
+                setState('recording');
+
+                recordingTimeout = setTimeout(() => {
+                    console.log('Auto-stopping after timeout');
+                    stopRecording();
+                }, MAX_RECORDING_TIME);
+            };
+
+            recognition.onresult = (event) => {
+                let finalTranscript = '';
+                let interimTranscript = '';
+
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    const transcript = event.results[i][0].transcript;
+                    if (event.results[i].isFinal) {
+                        finalTranscript += transcript;
+                    } else {
+                        interimTranscript += transcript;
+                    }
+                }
+
+                if (finalTranscript) {
+                    console.log('Final:', finalTranscript);
+                    clearRecordingTimeout();
+                    showResult(finalTranscript);
+                } else if (interimTranscript) {
+                    console.log('Interim:', interimTranscript);
+                    displayText.textContent = interimTranscript;
+                    displayText.className = 'display-text text-black';
+                }
+            };
+
+            recognition.onerror = (event) => {
+                console.error('Recognition error:', event.error);
+                clearRecordingTimeout();
+                isRecognitionActive = false;
+
+                switch (event.error) {
+                    case 'not-allowed':
+                        showError(getText('NEED_PERMISSION'));
+                        showResult(getText('NEED_PERMISSION'));
+                        break;
+                    case 'network':
+                        showResult(getText('NETWORK_ERROR'));
+                        break;
+                    case 'no-speech':
+                        showResult(getText('NOT_UNDERSTOOD'));
+                        break;
+                    case 'aborted':
+                        setState('ready');
+                        break;
+                    default:
+                        showResult(getText('NOT_UNDERSTOOD'));
+                }
+            };
+
+            recognition.onend = () => {
+                console.log('Recognition ended');
+                clearRecordingTimeout();
+                isRecognitionActive = false;
+
+                if (state === 'recording') {
+                    showResult(getText('NOT_UNDERSTOOD'));
+                }
+            };
+        }
+
+        function clearRecordingTimeout() {
+            if (recordingTimeout) {
+                clearTimeout(recordingTimeout);
+                recordingTimeout = null;
+            }
+        }
+
+        // ===========================================
+        // STATE MANAGEMENT
+        // ===========================================
+        function setState(newState) {
+            state = newState;
+
+            switch (state) {
+                case 'ready':
+                    mainButton.textContent = getText('TAP_TO_SPEAK');
+                    mainButton.className = 'big-button button-ready';
+                    displayText.textContent = getText('SAY_SOMETHING');
+                    displayText.className = 'display-text text-blue';
+                    break;
+
+                case 'recording':
+                    mainButton.textContent = getText('RECORDING');
+                    mainButton.className = 'big-button button-recording';
+                    displayText.textContent = getText('LISTENING');
+                    displayText.className = 'display-text text-red';
+                    speakerBtn.classList.remove('visible');
+                    break;
+
+                case 'processing':
+                    mainButton.textContent = getText('PROCESSING');
+                    mainButton.className = 'big-button button-processing';
+                    displayText.textContent = getText('THINKING');
+                    displayText.className = 'display-text text-yellow';
+                    break;
+
+                case 'showing':
+                    mainButton.textContent = getText('TAP_TO_SPEAK');
+                    mainButton.className = 'big-button button-ready';
+                    break;
+            }
+        }
+
+        function showResult(text) {
+            state = 'showing';
+            mainButton.textContent = getText('TAP_TO_SPEAK');
+            mainButton.className = 'big-button button-ready';
+            displayText.textContent = text;
+            displayText.className = 'display-text text-black';
+
+            // Store for TTS and show speaker button
+            if (text !== getText('NOT_UNDERSTOOD') &&
+                text !== getText('NETWORK_ERROR') &&
+                text !== getText('NEED_PERMISSION')) {
+                lastRecognizedText = text;
+                speakerBtn.classList.add('visible');
+            } else {
+                lastRecognizedText = '';
+                speakerBtn.classList.remove('visible');
+            }
+        }
+
+        function showError(message) {
+            errorBanner.textContent = message;
+            errorBanner.classList.add('show');
+            setTimeout(() => {
+                errorBanner.classList.remove('show');
+            }, 5000);
+        }
+
+        // ===========================================
+        // RECORDING CONTROL
+        // ===========================================
+        function startRecording() {
+            if (!recognition) {
+                showError(getText('NOT_SUPPORTED'));
+                return;
+            }
+
+            if (isRecognitionActive) {
+                console.log('Recognition already active, ignoring start');
+                return;
+            }
+
+            try {
+                recognition.start();
+            } catch (e) {
+                console.error('Failed to start recognition:', e);
+                isRecognitionActive = false;
+
+                if (e.message && e.message.includes('already')) {
+                    recognition.stop();
+                    setTimeout(() => {
+                        try {
+                            recognition.start();
+                        } catch (e2) {
+                            showError('Error: ' + e2.message);
+                        }
+                    }, 200);
+                } else {
+                    showError('Error: ' + e.message);
+                }
+            }
+        }
+
+        function stopRecording() {
+            if (!recognition || !isRecognitionActive) {
+                return;
+            }
+
+            console.log('Stopping recording');
+            clearRecordingTimeout();
+
+            try {
+                recognition.stop();
+            } catch (e) {
+                console.error('Error stopping recognition:', e);
+            }
+        }
+
+        function handleButtonClick() {
+            if (state === 'recording') {
+                stopRecording();
+            } else if (state === 'ready' || state === 'showing') {
+                startRecording();
+            }
+        }
+
+        // ===========================================
+        // EVENT LISTENERS
+        // ===========================================
+        mainButton.addEventListener('click', handleButtonClick);
+        mainButton.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            handleButtonClick();
+        });
+
+        document.addEventListener('touchend', (e) => {
+            // Only prevent default on game screen to avoid double-tap zoom
+            if (gameScreen.classList.contains('active')) {
+                e.preventDefault();
+            }
+        }, { passive: false });
+
+        // ===========================================
+        // INITIALIZATION
+        // ===========================================
+        function init() {
+            // Request microphone permission
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                navigator.mediaDevices.getUserMedia({ audio: true })
+                    .then(stream => {
+                        stream.getTracks().forEach(track => track.stop());
+                        console.log('Microphone permission granted');
+                    })
+                    .catch(err => {
+                        console.log('Microphone permission not yet granted:', err);
+                    });
+            }
+
+            // Initialize with Hebrew
+            setLanguage('hebrew');
+            console.log('Hebrew Voice App loaded');
+        }
+
+        init();
+    </script>
+</body>
+</html>
