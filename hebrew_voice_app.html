@@ -712,8 +712,14 @@
 
         document.addEventListener('touchend', (e) => {
             // Only prevent default on game screen to avoid double-tap zoom
+            // But allow language buttons and back button to work normally
             if (gameScreen.classList.contains('active')) {
-                e.preventDefault();
+                const isLangBtn = e.target.classList.contains('lang-btn');
+                const isBackBtn = e.target.classList.contains('back-button');
+                const isSpeakerBtn = e.target.id === 'speakerBtn';
+                if (!isLangBtn && !isBackBtn && !isSpeakerBtn) {
+                    e.preventDefault();
+                }
             }
         }, { passive: false });
 
