@@ -103,12 +103,22 @@ LANGUAGES = {
     'english': Language('en-US', 'English', 'English', 'ltr'),
 }
 
+# Hebrew letter names for spelling mode
+HEBREW_LETTER_NAMES = {
+    'א': 'אָלֶף', 'ב': 'בֵּית', 'ג': 'גִּימֶל', 'ד': 'דָּלֶת', 'ה': 'הֵא',
+    'ו': 'וָו', 'ז': 'זַיִן', 'ח': 'חֵית', 'ט': 'טֵית', 'י': 'יוֹד',
+    'כ': 'כָּף', 'ך': 'כָּף סוֹפִית', 'ל': 'לָמֶד', 'מ': 'מֵם', 'ם': 'מֵם סוֹפִית',
+    'נ': 'נוּן', 'ן': 'נוּן סוֹפִית', 'ס': 'סָמֶך', 'ע': 'עַיִן', 'פ': 'פֵּא',
+    'ף': 'פֵּא סוֹפִית', 'צ': 'צָדִי', 'ץ': 'צָדִי סוֹפִית', 'ק': 'קוֹף',
+    'ר': 'רֵישׁ', 'ש': 'שִׁין', 'ת': 'תָּו'
+}
+
 # UI Text for each language
 UI_TEXT = {
     'hebrew': {
         'SELECT_MODE': 'בחר משחק',
         'FREE_SPEECH': 'דיבור חופשי',
-        'SPELLING': 'איות (בקרוב)',
+        'SPELLING': 'איות',
         'TRANSLATION': 'תרגום (בקרוב)',
         'BACK': '← חזרה',
         'TAP_TO_SPEAK': 'לחץ לדבר!',
@@ -124,7 +134,7 @@ UI_TEXT = {
     'english': {
         'SELECT_MODE': 'Select Game',
         'FREE_SPEECH': 'Free Speech',
-        'SPELLING': 'Spelling (Soon)',
+        'SPELLING': 'Spelling',
         'TRANSLATION': 'Translation (Soon)',
         'BACK': '← Back',
         'TAP_TO_SPEAK': 'Tap to Speak!',
@@ -318,6 +328,71 @@ class HebrewVoiceApp:
 
         threading.Thread(target=speak, daemon=True).start()
 
+    def speak_and_spell(self, text: str = None):
+        """Speak each word and then spell it letter by letter."""
+        if not HAS_GTTS:
+            log.warning("gTTS not available for spelling")
+            return
+
+        text = text or self.last_recognized_text
+        if not text:
+            return
+
+        def spell():
+            try:
+                lang_code = 'he' if self.current_lang == 'hebrew' else 'en'
+                is_hebrew = self.current_lang == 'hebrew'
+                words = text.split()
+
+                for word in words:
+                    # Wait for any previous audio to finish
+                    while pygame.mixer.music.get_busy():
+                        pygame.time.wait(50)
+
+                    # Say the whole word
+                    try:
+                        tts = gTTS(text=word, lang=lang_code, slow=True)
+                        tts.save(self.temp_tts)
+                        pygame.mixer.music.load(self.temp_tts)
+                        pygame.mixer.music.play()
+                        log.info(f"Speaking word: {word}")
+                        while pygame.mixer.music.get_busy():
+                            pygame.time.wait(50)
+                    except Exception as e:
+                        log.error(f"TTS error for word '{word}': {e}")
+
+                    # Small pause after word
+                    pygame.time.wait(300)
+
+                    # Spell each letter
+                    for letter in word:
+                        if is_hebrew and letter in HEBREW_LETTER_NAMES:
+                            letter_name = HEBREW_LETTER_NAMES[letter]
+                        else:
+                            letter_name = letter.upper()
+
+                        try:
+                            tts = gTTS(text=letter_name, lang=lang_code, slow=True)
+                            tts.save(self.temp_tts)
+                            pygame.mixer.music.load(self.temp_tts)
+                            pygame.mixer.music.play()
+                            log.info(f"Spelling letter: {letter} -> {letter_name}")
+                            while pygame.mixer.music.get_busy():
+                                pygame.time.wait(50)
+                            # Small pause between letters
+                            pygame.time.wait(200)
+                        except Exception as e:
+                            log.error(f"TTS error for letter '{letter}': {e}")
+
+                    # Pause between words
+                    pygame.time.wait(500)
+
+                log.info("Finished spelling")
+            except Exception as e:
+                log.error(f"Spell error: {e}")
+
+        threading.Thread(target=spell, daemon=True).start()
+
     # ===========================================
     # RECORDING
     # ===========================================
@@ -410,6 +485,11 @@ class HebrewVoiceApp:
 
             self.state = AppState.SHOWING
 
+            # In spelling mode, automatically speak and spell
+            if self.current_mode == GameMode.SPELLING and self.last_recognized_text:
+                pygame.time.wait(300)
+                self.speak_and_spell()
+
         threading.Thread(target=process, daemon=True).start()
 
     # ===========================================
@@ -432,7 +512,7 @@ class HebrewVoiceApp:
         # Mode buttons
         mode_configs = [
             (GameMode.FREE_SPEECH, BRIGHT_GREEN, 'FREE_SPEECH', True),
-            (GameMode.SPELLING, GRAY, 'SPELLING', False),
+            (GameMode.SPELLING, CORAL, 'SPELLING', True),
             (GameMode.TRANSLATION, GRAY, 'TRANSLATION', False),
         ]
 
@@ -566,11 +646,11 @@ class HebrewVoiceApp:
         if self.state == AppState.MODE_SELECT:
             for mode, rect in self.mode_buttons.items():
                 if rect.collidepoint(pos):
-                    if mode == GameMode.FREE_SPEECH:
+                    if mode in [GameMode.FREE_SPEECH, GameMode.SPELLING]:
                         self.current_mode = mode
                         self.state = AppState.READY
                         log.info(f"Selected mode: {mode.value}")
-                    # Other modes coming soon
+                    # Translation mode coming soon
                     return
 
         else:

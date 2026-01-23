@@ -279,9 +279,9 @@
                 <span class="icon">🎤</span>
                 <span id="freeSpeechLabel">דיבור חופשי</span>
             </button>
-            <button class="mode-button spelling disabled" onclick="startMode('spelling')">
+            <button class="mode-button spelling" onclick="startMode('spelling')">
                 <span class="icon">📝</span>
-                <span id="spellingLabel">איות (בקרוב)</span>
+                <span id="spellingLabel">איות</span>
             </button>
             <button class="mode-button translation disabled" onclick="startMode('translation')">
                 <span class="icon">🌍</span>
@@ -312,6 +312,18 @@
 
     <script>
         // ===========================================
+        // LETTER NAMES FOR SPELLING
+        // ===========================================
+        const HEBREW_LETTER_NAMES = {
+            'א': 'אָלֶף', 'ב': 'בֵּית', 'ג': 'גִּימֶל', 'ד': 'דָּלֶת', 'ה': 'הֵא',
+            'ו': 'וָו', 'ז': 'זַיִן', 'ח': 'חֵית', 'ט': 'טֵית', 'י': 'יוֹד',
+            'כ': 'כָּף', 'ך': 'כָּף סוֹפִית', 'ל': 'לָמֶד', 'מ': 'מֵם', 'ם': 'מֵם סוֹפִית',
+            'נ': 'נוּן', 'ן': 'נוּן סוֹפִית', 'ס': 'סָמֶך', 'ע': 'עַיִן', 'פ': 'פֵּא',
+            'ף': 'פֵּא סוֹפִית', 'צ': 'צָדִי', 'ץ': 'צָדִי סוֹפִית', 'ק': 'קוֹף',
+            'ר': 'רֵישׁ', 'ש': 'שִׁין', 'ת': 'תָּו'
+        };
+
+        // ===========================================
         // LANGUAGE CONFIGURATION
         // ===========================================
         const LANGUAGES = {
@@ -321,7 +333,7 @@
                 text: {
                     SELECT_MODE: 'בחר משחק',
                     FREE_SPEECH: 'דיבור חופשי',
-                    SPELLING: 'איות (בקרוב)',
+                    SPELLING: 'איות',
                     TRANSLATION: 'תרגום (בקרוב)',
                     BACK: '← חזרה',
                     TAP_TO_SPEAK: 'לחץ לדבר!',
@@ -342,7 +354,7 @@
                 text: {
                     SELECT_MODE: 'Select Game',
                     FREE_SPEECH: 'Free Speech',
-                    SPELLING: 'Spelling (Coming Soon)',
+                    SPELLING: 'Spelling',
                     TRANSLATION: 'Translation (Coming Soon)',
                     BACK: '← Back',
                     TAP_TO_SPEAK: 'Tap to Speak!',
@@ -404,6 +416,51 @@
             synth.speak(utterance);
         }
 
+        // Speak and spell: say each word then spell it letter by letter
+        function speakAndSpell(text) {
+            if (!text || !synth) return;
+
+            synth.cancel();
+            const words = text.split(/\s+/).filter(w => w.length > 0);
+            const langCode = LANGUAGES[currentLang].code;
+            const isHebrew = currentLang === 'hebrew';
+
+            // Queue all utterances
+            words.forEach((word, wordIndex) => {
+                // Say the whole word first
+                const wordUtterance = new SpeechSynthesisUtterance(word);
+                wordUtterance.lang = langCode;
+                wordUtterance.rate = 0.8;
+                synth.speak(wordUtterance);
+
+                // Then spell each letter
+                const letters = [...word];
+                letters.forEach((letter, letterIndex) => {
+                    let letterName;
+                    if (isHebrew && HEBREW_LETTER_NAMES[letter]) {
+                        letterName = HEBREW_LETTER_NAMES[letter];
+                    } else {
+                        // For English or unknown characters, just say the letter
+                        letterName = letter.toUpperCase();
+                    }
+
+                    const letterUtterance = new SpeechSynthesisUtterance(letterName);
+                    letterUtterance.lang = langCode;
+                    letterUtterance.rate = 0.7;
+                    synth.speak(letterUtterance);
+                });
+
+                // Add a pause between words (using a silent utterance or short pause word)
+                if (wordIndex < words.length - 1) {
+                    const pauseUtterance = new SpeechSynthesisUtterance('.');
+                    pauseUtterance.lang = langCode;
+                    pauseUtterance.rate = 0.3;
+                    pauseUtterance.volume = 0;
+                    synth.speak(pauseUtterance);
+                }
+            });
+        }
+
         // ===========================================
         // LANGUAGE FUNCTIONS
         // ===========================================
@@ -457,7 +514,7 @@
         // MODE NAVIGATION
         // ===========================================
         function startMode(mode) {
-            if (mode === 'spelling' || mode === 'translation') {
+            if (mode === 'translation') {
                 // Coming soon
                 return;
             }
@@ -629,6 +686,11 @@
                 text !== getText('NEED_PERMISSION')) {
                 lastRecognizedText = text;
                 speakerBtn.classList.add('visible');
+
+                // In spelling mode, automatically speak and spell
+                if (currentMode === 'spelling') {
+                    setTimeout(() => speakAndSpell(text), 300);
+                }
             } else {
                 lastRecognizedText = '';
                 speakerBtn.classList.remove('visible');
