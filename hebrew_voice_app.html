@@ -153,6 +153,33 @@
             color: white;
         }
 
+        /* Continuous mode button */
+        .continuous-btn {
+            background: transparent;
+            border: 3px solid #9b59b6;
+            color: #9b59b6;
+            border-radius: 50%;
+            width: clamp(40px, 8vmin, 60px);
+            height: clamp(40px, 8vmin, 60px);
+            font-size: clamp(18px, 4vmin, 28px);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        .continuous-btn.active {
+            background: #9b59b6;
+            color: white;
+            animation: continuousPulse 1s ease-in-out infinite;
+        }
+
+        @keyframes continuousPulse {
+            0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(155, 89, 182, 0.4); }
+            50% { transform: scale(1.05); box-shadow: 0 0 15px 5px rgba(155, 89, 182, 0.3); }
+        }
+
         /* Display area */
         .display-area {
             flex: 1;
@@ -294,6 +321,7 @@
     <div id="gameScreen" class="game-screen">
         <div class="top-bar">
             <button class="back-button" onclick="goBack()">← חזרה</button>
+            <button class="continuous-btn" id="continuousBtn" onclick="toggleContinuous()">∞</button>
             <div class="lang-toggle">
                 <button class="lang-btn active" id="btnHebrew" onclick="setLanguage('hebrew')">עברית</button>
                 <button class="lang-btn" id="btnEnglish" onclick="setLanguage('english')">English</button>
@@ -345,7 +373,9 @@
                     NOT_UNDERSTOOD: 'לא הבנתי',
                     NETWORK_ERROR: 'שגיאת רשת',
                     NOT_SUPPORTED: 'הדפדפן לא תומך בזיהוי קול',
-                    NEED_PERMISSION: 'נדרשת הרשאת מיקרופון'
+                    NEED_PERMISSION: 'נדרשת הרשאת מיקרופון',
+                    CONTINUOUS: 'רצף',
+                    CONTINUOUS_ON: 'רצף פעיל'
                 }
             },
             english: {
@@ -366,7 +396,9 @@
                     NOT_UNDERSTOOD: "Didn't understand",
                     NETWORK_ERROR: 'Network error',
                     NOT_SUPPORTED: 'Browser does not support speech recognition',
-                    NEED_PERMISSION: 'Microphone permission required'
+                    NEED_PERMISSION: 'Microphone permission required',
+                    CONTINUOUS: 'Loop',
+                    CONTINUOUS_ON: 'Loop Active'
                 }
             }
         };
@@ -381,6 +413,7 @@
         let recordingTimeout = null;
         let isRecognitionActive = false;
         let lastRecognizedText = '';
+        let continuousMode = false;
 
         const MAX_RECORDING_TIME = 10000;
 
@@ -400,30 +433,57 @@
         const btnEnglish = document.getElementById('btnEnglish');
         const speakerBtn = document.getElementById('speakerBtn');
         const backButton = document.querySelector('.back-button');
+        const continuousBtn = document.getElementById('continuousBtn');
 
         // ===========================================
         // TEXT-TO-SPEECH
         // ===========================================
         const synth = window.speechSynthesis;
 
-        function speakText() {
-            if (!lastRecognizedText || !synth) return;
+        function speakText(text = null, onComplete = null) {
+            const textToSpeak = text || lastRecognizedText;
+            if (!textToSpeak || !synth) {
+                if (onComplete) onComplete();
+                return;
+            }
 
             synth.cancel();
-            const utterance = new SpeechSynthesisUtterance(lastRecognizedText);
+            const utterance = new SpeechSynthesisUtterance(textToSpeak);
             utterance.lang = LANGUAGES[currentLang].code;
             utterance.rate = 0.8;
+
+            utterance.onend = () => {
+                if (onComplete) {
+                    onComplete();
+                } else if (continuousMode) {
+                    restartListeningAfterDelay();
+                }
+            };
+
+            utterance.onerror = () => {
+                if (onComplete) {
+                    onComplete();
+                } else if (continuousMode) {
+                    restartListeningAfterDelay();
+                }
+            };
+
             synth.speak(utterance);
         }
 
         // Speak and spell: say each word then spell it letter by letter
         function speakAndSpell(text) {
-            if (!text || !synth) return;
+            if (!text || !synth) {
+                if (continuousMode) restartListeningAfterDelay();
+                return;
+            }
 
             synth.cancel();
             const words = text.split(/\s+/).filter(w => w.length > 0);
             const langCode = LANGUAGES[currentLang].code;
             const isHebrew = currentLang === 'hebrew';
+
+            let lastUtterance = null;
 
             // Queue all utterances
             words.forEach((word, wordIndex) => {
@@ -432,6 +492,7 @@
                 wordUtterance.lang = langCode;
                 wordUtterance.rate = 0.8;
                 synth.speak(wordUtterance);
+                lastUtterance = wordUtterance;
 
                 // Then spell each letter
                 const letters = [...word];
@@ -448,6 +509,7 @@
                     letterUtterance.lang = langCode;
                     letterUtterance.rate = 0.7;
                     synth.speak(letterUtterance);
+                    lastUtterance = letterUtterance;
                 });
 
                 // Add a pause between words (using a silent utterance or short pause word)
@@ -457,8 +519,57 @@
                     pauseUtterance.rate = 0.3;
                     pauseUtterance.volume = 0;
                     synth.speak(pauseUtterance);
+                    lastUtterance = pauseUtterance;
                 }
             });
+
+            // Restart listening after spelling completes in continuous mode
+            if (lastUtterance && continuousMode) {
+                lastUtterance.onend = () => {
+                    restartListeningAfterDelay();
+                };
+                lastUtterance.onerror = () => {
+                    restartListeningAfterDelay();
+                };
+            }
+        }
+
+        // ===========================================
+        // CONTINUOUS MODE
+        // ===========================================
+        function toggleContinuous() {
+            continuousMode = !continuousMode;
+            updateContinuousUI();
+            console.log('Continuous mode:', continuousMode);
+
+            if (continuousMode && (state === 'ready' || state === 'showing')) {
+                // Start listening immediately when enabling continuous mode
+                startRecording();
+            } else if (!continuousMode && isRecognitionActive) {
+                // Stop if we're currently recording
+                stopRecording();
+            }
+        }
+
+        function updateContinuousUI() {
+            if (continuousMode) {
+                continuousBtn.classList.add('active');
+                continuousBtn.title = getText('CONTINUOUS_ON');
+            } else {
+                continuousBtn.classList.remove('active');
+                continuousBtn.title = getText('CONTINUOUS');
+            }
+        }
+
+        function restartListeningAfterDelay(delay = 500) {
+            if (continuousMode && !isRecognitionActive) {
+                setTimeout(() => {
+                    if (continuousMode && (state === 'ready' || state === 'showing')) {
+                        console.log('Continuous mode: restarting listening');
+                        startRecording();
+                    }
+                }, delay);
+            }
         }
 
         // ===========================================
@@ -529,6 +640,10 @@
             if (isRecognitionActive) {
                 stopRecording();
             }
+            // Disable continuous mode when going back
+            continuousMode = false;
+            updateContinuousUI();
+
             currentMode = null;
             lastRecognizedText = '';
             speakerBtn.classList.remove('visible');
@@ -680,20 +795,30 @@
             displayText.textContent = text;
             displayText.className = 'display-text text-black';
 
+            const isError = text === getText('NOT_UNDERSTOOD') ||
+                           text === getText('NETWORK_ERROR') ||
+                           text === getText('NEED_PERMISSION');
+
             // Store for TTS and show speaker button
-            if (text !== getText('NOT_UNDERSTOOD') &&
-                text !== getText('NETWORK_ERROR') &&
-                text !== getText('NEED_PERMISSION')) {
+            if (!isError) {
                 lastRecognizedText = text;
                 speakerBtn.classList.add('visible');
 
                 // In spelling mode, automatically speak and spell
                 if (currentMode === 'spelling') {
                     setTimeout(() => speakAndSpell(text), 300);
+                } else if (continuousMode) {
+                    // In free speech continuous mode, speak the result then restart
+                    setTimeout(() => speakText(text), 300);
                 }
             } else {
                 lastRecognizedText = '';
                 speakerBtn.classList.remove('visible');
+
+                // In continuous mode, keep listening even on errors
+                if (continuousMode) {
+                    restartListeningAfterDelay(1000);
+                }
             }
         }
 
@@ -774,12 +899,13 @@
 
         document.addEventListener('touchend', (e) => {
             // Only prevent default on game screen to avoid double-tap zoom
-            // But allow language buttons and back button to work normally
+            // But allow interactive buttons to work normally
             if (gameScreen.classList.contains('active')) {
                 const isLangBtn = e.target.classList.contains('lang-btn');
                 const isBackBtn = e.target.classList.contains('back-button');
                 const isSpeakerBtn = e.target.id === 'speakerBtn';
-                if (!isLangBtn && !isBackBtn && !isSpeakerBtn) {
+                const isContinuousBtn = e.target.classList.contains('continuous-btn');
+                if (!isLangBtn && !isBackBtn && !isSpeakerBtn && !isContinuousBtn) {
                     e.preventDefault();
                 }
             }

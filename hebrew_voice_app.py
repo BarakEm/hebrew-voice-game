@@ -65,6 +65,7 @@ SOFT_BACKGROUND = (240, 248, 255)
 TEAL = (78, 205, 196)
 CORAL = (255, 107, 107)
 GRAY = (200, 200, 200)
+PURPLE = (155, 89, 182)  # Continuous mode color
 
 # Audio settings
 RECORD_SAMPLE_RATE = 44100
@@ -130,6 +131,8 @@ UI_TEXT = {
         'NOT_UNDERSTOOD': 'לא הבנתי',
         'NETWORK_ERROR': 'שגיאת רשת',
         'ERROR': 'שגיאה',
+        'CONTINUOUS': 'רצף',
+        'CONTINUOUS_ON': 'רצף פעיל',
     },
     'english': {
         'SELECT_MODE': 'Select Game',
@@ -146,6 +149,8 @@ UI_TEXT = {
         'NOT_UNDERSTOOD': "Didn't understand",
         'NETWORK_ERROR': 'Network error',
         'ERROR': 'Error',
+        'CONTINUOUS': 'Loop',
+        'CONTINUOUS_ON': 'Loop Active',
     }
 }
 
@@ -196,6 +201,11 @@ class HebrewVoiceApp:
         # Recording state
         self.is_recording_active = False
         self.stop_recording_flag = False
+
+        # Continuous mode
+        self.continuous_mode = False
+        self.tts_playing = False
+        self.pending_restart_listening = False
 
         # Audio
         self.audio = pyaudio.PyAudio()
@@ -250,6 +260,14 @@ class HebrewVoiceApp:
         # Game screen elements
         self.back_button_rect = pygame.Rect(margin, margin, int(SCREEN_WIDTH * 0.25), int(SCREEN_HEIGHT * 0.08))
 
+        # Continuous mode button (circular, between back button and language toggle)
+        continuous_size = int(min(SCREEN_WIDTH, SCREEN_HEIGHT) * 0.08)
+        self.continuous_btn_rect = pygame.Rect(
+            self.back_button_rect.right + margin,
+            margin + (int(SCREEN_HEIGHT * 0.08) - continuous_size) // 2,
+            continuous_size, continuous_size
+        )
+
         # Language toggle
         toggle_width = int(SCREEN_WIDTH * 0.4)
         toggle_height = int(SCREEN_HEIGHT * 0.08)
@@ -302,44 +320,82 @@ class HebrewVoiceApp:
                 self.state = AppState.READY
                 self.recognized_text = ""
 
+    def _toggle_continuous_mode(self):
+        """Toggle continuous (eyes-free) mode."""
+        self.continuous_mode = not self.continuous_mode
+        log.info(f"Continuous mode: {self.continuous_mode}")
+
+        if self.continuous_mode and self.state in [AppState.READY, AppState.SHOWING]:
+            # Start listening immediately when enabling continuous mode
+            self._record_audio()
+        elif not self.continuous_mode and self.is_recording_active:
+            # Stop if we're currently recording
+            self._stop_recording()
+
     # ===========================================
     # TEXT-TO-SPEECH
     # ===========================================
-    def speak_text(self, text: str = None):
+    def speak_text(self, text: str = None, restart_after: bool = False):
         """Speak the given text or last recognized text."""
         if not HAS_GTTS:
             log.warning("gTTS not available")
+            if restart_after and self.continuous_mode:
+                self.pending_restart_listening = True
             return
 
         text = text or self.last_recognized_text
         if not text:
+            if restart_after and self.continuous_mode:
+                self.pending_restart_listening = True
             return
 
         def speak():
             try:
+                self.tts_playing = True
                 lang_code = 'he' if self.current_lang == 'hebrew' else 'en'
                 tts = gTTS(text=text, lang=lang_code, slow=True)
                 tts.save(self.temp_tts)
                 pygame.mixer.music.load(self.temp_tts)
                 pygame.mixer.music.play()
                 log.info(f"Speaking: {text}")
+
+                # Wait for TTS to finish
+                while pygame.mixer.music.get_busy():
+                    pygame.time.wait(50)
+
+                self.tts_playing = False
+
+                # Schedule restart if continuous mode
+                if restart_after and self.continuous_mode:
+                    pygame.time.wait(500)  # Short pause before restart
+                    self.pending_restart_listening = True
+                    log.info("Continuous mode: scheduling restart after TTS")
+
             except Exception as e:
                 log.error(f"TTS error: {e}")
+                self.tts_playing = False
+                if restart_after and self.continuous_mode:
+                    self.pending_restart_listening = True
 
         threading.Thread(target=speak, daemon=True).start()
 
-    def speak_and_spell(self, text: str = None):
+    def speak_and_spell(self, text: str = None, restart_after: bool = False):
         """Speak each word and then spell it letter by letter."""
         if not HAS_GTTS:
             log.warning("gTTS not available for spelling")
+            if restart_after and self.continuous_mode:
+                self.pending_restart_listening = True
             return
 
         text = text or self.last_recognized_text
         if not text:
+            if restart_after and self.continuous_mode:
+                self.pending_restart_listening = True
             return
 
         def spell():
             try:
+                self.tts_playing = True
                 lang_code = 'he' if self.current_lang == 'hebrew' else 'en'
                 is_hebrew = self.current_lang == 'hebrew'
                 words = text.split()
@@ -388,8 +444,19 @@ class HebrewVoiceApp:
                     pygame.time.wait(500)
 
                 log.info("Finished spelling")
+                self.tts_playing = False
+
+                # Schedule restart if continuous mode
+                if restart_after and self.continuous_mode:
+                    pygame.time.wait(500)  # Short pause before restart
+                    self.pending_restart_listening = True
+                    log.info("Continuous mode: scheduling restart after spelling")
+
             except Exception as e:
                 log.error(f"Spell error: {e}")
+                self.tts_playing = False
+                if restart_after and self.continuous_mode:
+                    self.pending_restart_listening = True
 
         threading.Thread(target=spell, daemon=True).start()
 
@@ -488,7 +555,15 @@ class HebrewVoiceApp:
             # In spelling mode, automatically speak and spell
             if self.current_mode == GameMode.SPELLING and self.last_recognized_text:
                 pygame.time.wait(300)
-                self.speak_and_spell()
+                self.speak_and_spell(restart_after=self.continuous_mode)
+            elif self.continuous_mode and self.last_recognized_text:
+                # In free speech continuous mode, speak the result then restart
+                pygame.time.wait(300)
+                self.speak_text(restart_after=True)
+            elif self.continuous_mode and not self.last_recognized_text:
+                # Error case in continuous mode - restart listening after delay
+                pygame.time.wait(1000)
+                self.pending_restart_listening = True
 
         threading.Thread(target=process, daemon=True).start()
 
@@ -560,6 +635,24 @@ class HebrewVoiceApp:
         en_text = self.small_font.render('English', True, en_text_color)
         en_rect = en_text.get_rect(center=self.english_btn_rect.center)
         self.screen.blit(en_text, en_rect)
+
+        # Continuous mode button
+        if self.continuous_mode:
+            # Active state - filled purple with pulse animation
+            pulse_scale = 1.0 + 0.05 * abs(30 - (self.animation_frame % 60)) / 30
+            pulse_rect = self.continuous_btn_rect.inflate(
+                int(self.continuous_btn_rect.width * (pulse_scale - 1)),
+                int(self.continuous_btn_rect.height * (pulse_scale - 1))
+            )
+            pygame.draw.circle(self.screen, PURPLE, pulse_rect.center, pulse_rect.width // 2)
+            cont_text = self.small_font.render('∞', True, WHITE)
+        else:
+            # Inactive state - outline only
+            pygame.draw.circle(self.screen, PURPLE, self.continuous_btn_rect.center,
+                             self.continuous_btn_rect.width // 2, width=3)
+            cont_text = self.small_font.render('∞', True, PURPLE)
+        cont_rect = cont_text.get_rect(center=self.continuous_btn_rect.center)
+        self.screen.blit(cont_text, cont_rect)
 
         # Display area
         pygame.draw.rect(self.screen, WHITE, self.display_rect, border_radius=30)
@@ -658,10 +751,18 @@ class HebrewVoiceApp:
             if self.back_button_rect.collidepoint(pos):
                 if self.is_recording_active:
                     self._stop_recording()
+                # Disable continuous mode when going back
+                self.continuous_mode = False
+                self.pending_restart_listening = False
                 self.state = AppState.MODE_SELECT
                 self.current_mode = None
                 self.recognized_text = ""
                 self.last_recognized_text = ""
+                return
+
+            # Continuous mode toggle
+            if self.continuous_btn_rect.collidepoint(pos):
+                self._toggle_continuous_mode()
                 return
 
             # Language toggle
@@ -710,12 +811,25 @@ class HebrewVoiceApp:
                         self.set_language('hebrew')
                     elif event.key == pygame.K_e:
                         self.set_language('english')
+                    elif event.key == pygame.K_c:
+                        if self.state not in [AppState.MODE_SELECT]:
+                            self._toggle_continuous_mode()
                 elif event.type == pygame.MOUSEBUTTONDOWN:
                     self._handle_touch(event.pos)
                 elif event.type == pygame.FINGERDOWN:
                     x = int(event.x * SCREEN_WIDTH)
                     y = int(event.y * SCREEN_HEIGHT)
                     self._handle_touch((x, y))
+
+            # Check for pending restart in continuous mode
+            if (self.pending_restart_listening and
+                self.continuous_mode and
+                not self.is_recording_active and
+                not self.tts_playing and
+                self.state in [AppState.READY, AppState.SHOWING]):
+                self.pending_restart_listening = False
+                log.info("Continuous mode: restarting listening")
+                self._record_audio()
 
             # Draw
             self.screen.fill(SOFT_BACKGROUND)
@@ -742,7 +856,7 @@ def main():
     log.info("=" * 50)
     log.info("Hebrew Voice Game")
     log.info("=" * 50)
-    log.info("Controls: ESC=exit, SPACE=action, S=screenshot, H=Hebrew, E=English")
+    log.info("Controls: ESC=exit, SPACE=action, S=screenshot, H=Hebrew, E=English, C=continuous mode")
     log.info(f"TTS available: {HAS_GTTS}")
 
     app = HebrewVoiceApp()
