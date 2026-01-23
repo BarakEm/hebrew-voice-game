@@ -310,9 +310,9 @@
                 <span class="icon">📝</span>
                 <span id="spellingLabel">איות</span>
             </button>
-            <button class="mode-button translation disabled" onclick="startMode('translation')">
+            <button class="mode-button translation" onclick="startMode('translation')">
                 <span class="icon">🌍</span>
-                <span id="translationLabel">תרגום (בקרוב)</span>
+                <span id="translationLabel">תרגום</span>
             </button>
         </div>
     </div>
@@ -329,7 +329,7 @@
         </div>
 
         <div class="display-area">
-            <button id="speakerBtn" class="speaker-btn" onclick="speakText()">🔊</button>
+            <button id="speakerBtn" class="speaker-btn" onclick="handleSpeakerClick()">🔊</button>
             <div id="displayText" class="display-text text-blue">אמור משהו בעברית!</div>
         </div>
 
@@ -362,7 +362,10 @@
                     SELECT_MODE: 'בחר משחק',
                     FREE_SPEECH: 'דיבור חופשי',
                     SPELLING: 'איות',
-                    TRANSLATION: 'תרגום (בקרוב)',
+                    TRANSLATION: 'תרגום',
+                    TRANSLATING: 'מתרגם...',
+                    TRANSLATE_TO: 'אמור משהו בעברית לתרגום לאנגלית',
+                    TRANSLATION_ERROR: 'שגיאת תרגום',
                     BACK: '← חזרה',
                     TAP_TO_SPEAK: 'לחץ לדבר!',
                     RECORDING: 'מקליט... (לחץ לעצירה)',
@@ -385,7 +388,10 @@
                     SELECT_MODE: 'Select Game',
                     FREE_SPEECH: 'Free Speech',
                     SPELLING: 'Spelling',
-                    TRANSLATION: 'Translation (Coming Soon)',
+                    TRANSLATION: 'Translation',
+                    TRANSLATING: 'Translating...',
+                    TRANSLATE_TO: 'Say something in English to translate to Hebrew',
+                    TRANSLATION_ERROR: 'Translation error',
                     BACK: '← Back',
                     TAP_TO_SPEAK: 'Tap to Speak!',
                     RECORDING: 'Recording... (tap to stop)',
@@ -471,6 +477,19 @@
             synth.speak(utterance);
         }
 
+        // Handle speaker button click - speaks in correct language based on mode
+        function handleSpeakerClick() {
+            if (!lastRecognizedText) return;
+
+            if (currentMode === 'translation') {
+                // In translation mode, lastRecognizedText is in the TARGET language
+                const targetLangCode = currentLang === 'hebrew' ? 'en-US' : 'he-IL';
+                speakInLanguage(lastRecognizedText, targetLangCode);
+            } else {
+                speakText();
+            }
+        }
+
         // Speak and spell: say each word then spell it letter by letter
         function speakAndSpell(text) {
             if (!text || !synth) {
@@ -532,6 +551,61 @@
                     restartListeningAfterDelay();
                 };
             }
+        }
+
+        // ===========================================
+        // TRANSLATION API
+        // ===========================================
+        async function translateText(text, fromLang, toLang) {
+            // Use MyMemory free translation API
+            const langPair = `${fromLang}|${toLang}`;
+            const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${langPair}`;
+
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (data.responseStatus === 200 && data.responseData) {
+                    return data.responseData.translatedText;
+                } else {
+                    console.error('Translation API error:', data);
+                    return null;
+                }
+            } catch (error) {
+                console.error('Translation fetch error:', error);
+                return null;
+            }
+        }
+
+        // Speak text in a specific language (not necessarily current language)
+        function speakInLanguage(text, langCode, onComplete = null) {
+            if (!text || !synth) {
+                if (onComplete) onComplete();
+                return;
+            }
+
+            synth.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = langCode;
+            utterance.rate = 0.8;
+
+            utterance.onend = () => {
+                if (onComplete) {
+                    onComplete();
+                } else if (continuousMode) {
+                    restartListeningAfterDelay();
+                }
+            };
+
+            utterance.onerror = () => {
+                if (onComplete) {
+                    onComplete();
+                } else if (continuousMode) {
+                    restartListeningAfterDelay();
+                }
+            };
+
+            synth.speak(utterance);
         }
 
         // ===========================================
@@ -616,7 +690,11 @@
 
             // Update based on current state
             if (state === 'ready') {
-                displayText.textContent = getText('SAY_SOMETHING');
+                if (currentMode === 'translation') {
+                    displayText.textContent = getText('TRANSLATE_TO');
+                } else {
+                    displayText.textContent = getText('SAY_SOMETHING');
+                }
                 mainButton.textContent = getText('TAP_TO_SPEAK');
             }
         }
@@ -625,11 +703,6 @@
         // MODE NAVIGATION
         // ===========================================
         function startMode(mode) {
-            if (mode === 'translation') {
-                // Coming soon
-                return;
-            }
-
             currentMode = mode;
             modeScreen.classList.add('hidden');
             gameScreen.classList.add('active');
@@ -762,7 +835,12 @@
                 case 'ready':
                     mainButton.textContent = getText('TAP_TO_SPEAK');
                     mainButton.className = 'big-button button-ready';
-                    displayText.textContent = getText('SAY_SOMETHING');
+                    // Show appropriate prompt based on mode
+                    if (currentMode === 'translation') {
+                        displayText.textContent = getText('TRANSLATE_TO');
+                    } else {
+                        displayText.textContent = getText('SAY_SOMETHING');
+                    }
                     displayText.className = 'display-text text-blue';
                     break;
 
@@ -789,15 +867,21 @@
         }
 
         function showResult(text) {
+            const isError = text === getText('NOT_UNDERSTOOD') ||
+                           text === getText('NETWORK_ERROR') ||
+                           text === getText('NEED_PERMISSION');
+
+            // Handle translation mode separately
+            if (currentMode === 'translation' && !isError) {
+                handleTranslationResult(text);
+                return;
+            }
+
             state = 'showing';
             mainButton.textContent = getText('TAP_TO_SPEAK');
             mainButton.className = 'big-button button-ready';
             displayText.textContent = text;
             displayText.className = 'display-text text-black';
-
-            const isError = text === getText('NOT_UNDERSTOOD') ||
-                           text === getText('NETWORK_ERROR') ||
-                           text === getText('NEED_PERMISSION');
 
             // Store for TTS and show speaker button
             if (!isError) {
@@ -816,6 +900,49 @@
                 speakerBtn.classList.remove('visible');
 
                 // In continuous mode, keep listening even on errors
+                if (continuousMode) {
+                    restartListeningAfterDelay(1000);
+                }
+            }
+        }
+
+        async function handleTranslationResult(spokenText) {
+            // Show translating state
+            state = 'processing';
+            mainButton.textContent = getText('PROCESSING');
+            mainButton.className = 'big-button button-processing';
+            displayText.textContent = getText('TRANSLATING');
+            displayText.className = 'display-text text-yellow';
+
+            // Determine source and target languages
+            const fromLang = currentLang === 'hebrew' ? 'he' : 'en';
+            const toLang = currentLang === 'hebrew' ? 'en' : 'he';
+            const targetLangCode = currentLang === 'hebrew' ? 'en-US' : 'he-IL';
+
+            // Translate
+            const translation = await translateText(spokenText, fromLang, toLang);
+
+            state = 'showing';
+            mainButton.textContent = getText('TAP_TO_SPEAK');
+            mainButton.className = 'big-button button-ready';
+
+            if (translation) {
+                // Show both original and translation
+                displayText.innerHTML = `<div style="font-size: 0.5em; color: #888; margin-bottom: 10px;">${spokenText}</div>${translation}`;
+                displayText.className = 'display-text text-black';
+                lastRecognizedText = translation;
+                speakerBtn.classList.add('visible');
+
+                // Speak the translation in target language
+                setTimeout(() => {
+                    speakInLanguage(translation, targetLangCode, continuousMode ? () => restartListeningAfterDelay() : null);
+                }, 300);
+            } else {
+                displayText.textContent = getText('TRANSLATION_ERROR');
+                displayText.className = 'display-text text-red';
+                lastRecognizedText = '';
+                speakerBtn.classList.remove('visible');
+
                 if (continuousMode) {
                     restartListeningAfterDelay(1000);
                 }

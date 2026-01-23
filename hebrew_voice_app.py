@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from typing import Optional, Callable
 import speech_recognition as sr
 from bidi.algorithm import get_display
+import requests
 
 # Optional TTS support
 try:
@@ -120,7 +121,10 @@ UI_TEXT = {
         'SELECT_MODE': 'בחר משחק',
         'FREE_SPEECH': 'דיבור חופשי',
         'SPELLING': 'איות',
-        'TRANSLATION': 'תרגום (בקרוב)',
+        'TRANSLATION': 'תרגום',
+        'TRANSLATING': 'מתרגם...',
+        'TRANSLATE_TO': 'אמור משהו בעברית לתרגום',
+        'TRANSLATION_ERROR': 'שגיאת תרגום',
         'BACK': '← חזרה',
         'TAP_TO_SPEAK': 'לחץ לדבר!',
         'RECORDING': 'מקליט... (לחץ לעצירה)',
@@ -138,7 +142,10 @@ UI_TEXT = {
         'SELECT_MODE': 'Select Game',
         'FREE_SPEECH': 'Free Speech',
         'SPELLING': 'Spelling',
-        'TRANSLATION': 'Translation (Soon)',
+        'TRANSLATION': 'Translation',
+        'TRANSLATING': 'Translating...',
+        'TRANSLATE_TO': 'Say something to translate',
+        'TRANSLATION_ERROR': 'Translation error',
         'BACK': '← Back',
         'TAP_TO_SPEAK': 'Tap to Speak!',
         'RECORDING': 'Recording... (tap to stop)',
@@ -197,6 +204,7 @@ class HebrewVoiceApp:
         self.current_mode: Optional[GameMode] = None
         self.recognized_text = ""
         self.last_recognized_text = ""
+        self.translation_original = ""  # Store original text in translation mode
 
         # Recording state
         self.is_recording_active = False
@@ -461,6 +469,69 @@ class HebrewVoiceApp:
         threading.Thread(target=spell, daemon=True).start()
 
     # ===========================================
+    # TRANSLATION
+    # ===========================================
+    def translate_text(self, text: str, from_lang: str, to_lang: str) -> Optional[str]:
+        """Translate text using MyMemory free API."""
+        try:
+            url = f"https://api.mymemory.translated.net/get?q={requests.utils.quote(text)}&langpair={from_lang}|{to_lang}"
+            response = requests.get(url, timeout=10)
+            data = response.json()
+
+            if data.get('responseStatus') == 200 and data.get('responseData'):
+                translation = data['responseData'].get('translatedText')
+                log.info(f"Translated '{text}' -> '{translation}'")
+                return translation
+            else:
+                log.error(f"Translation API error: {data}")
+                return None
+        except Exception as e:
+            log.error(f"Translation error: {e}")
+            return None
+
+    def speak_in_language(self, text: str, lang_code: str, restart_after: bool = False):
+        """Speak text in a specific language (not necessarily current language)."""
+        if not HAS_GTTS:
+            log.warning("gTTS not available")
+            if restart_after and self.continuous_mode:
+                self.pending_restart_listening = True
+            return
+
+        if not text:
+            if restart_after and self.continuous_mode:
+                self.pending_restart_listening = True
+            return
+
+        def speak():
+            try:
+                self.tts_playing = True
+                tts = gTTS(text=text, lang=lang_code, slow=True)
+                tts.save(self.temp_tts)
+                pygame.mixer.music.load(self.temp_tts)
+                pygame.mixer.music.play()
+                log.info(f"Speaking in {lang_code}: {text}")
+
+                # Wait for TTS to finish
+                while pygame.mixer.music.get_busy():
+                    pygame.time.wait(50)
+
+                self.tts_playing = False
+
+                # Schedule restart if continuous mode
+                if restart_after and self.continuous_mode:
+                    pygame.time.wait(500)
+                    self.pending_restart_listening = True
+                    log.info("Continuous mode: scheduling restart after TTS")
+
+            except Exception as e:
+                log.error(f"TTS error: {e}")
+                self.tts_playing = False
+                if restart_after and self.continuous_mode:
+                    self.pending_restart_listening = True
+
+        threading.Thread(target=speak, daemon=True).start()
+
+    # ===========================================
     # RECORDING
     # ===========================================
     def _record_audio(self):
@@ -550,6 +621,11 @@ class HebrewVoiceApp:
                 self.last_recognized_text = ""
                 log.exception(f"Processing error: {e}")
 
+            # Handle translation mode
+            if self.current_mode == GameMode.TRANSLATION and self.last_recognized_text:
+                self._handle_translation(self.last_recognized_text)
+                return
+
             self.state = AppState.SHOWING
 
             # In spelling mode, automatically speak and spell
@@ -566,6 +642,37 @@ class HebrewVoiceApp:
                 self.pending_restart_listening = True
 
         threading.Thread(target=process, daemon=True).start()
+
+    def _handle_translation(self, spoken_text: str):
+        """Handle translation of recognized speech."""
+        # Show translating state
+        self.recognized_text = self.get_text('TRANSLATING')
+
+        # Determine source and target languages
+        from_lang = 'he' if self.current_lang == 'hebrew' else 'en'
+        to_lang = 'en' if self.current_lang == 'hebrew' else 'he'
+
+        # Translate
+        translation = self.translate_text(spoken_text, from_lang, to_lang)
+
+        if translation:
+            # Show original + translation
+            self.recognized_text = translation
+            self.last_recognized_text = translation
+            self.translation_original = spoken_text  # Store original for display
+            self.state = AppState.SHOWING
+
+            # Speak the translation in target language
+            pygame.time.wait(300)
+            self.speak_in_language(translation, to_lang, restart_after=self.continuous_mode)
+        else:
+            self.recognized_text = self.get_text('TRANSLATION_ERROR')
+            self.last_recognized_text = ""
+            self.state = AppState.SHOWING
+
+            if self.continuous_mode:
+                pygame.time.wait(1000)
+                self.pending_restart_listening = True
 
     # ===========================================
     # DRAWING
@@ -588,7 +695,7 @@ class HebrewVoiceApp:
         mode_configs = [
             (GameMode.FREE_SPEECH, BRIGHT_GREEN, 'FREE_SPEECH', True),
             (GameMode.SPELLING, CORAL, 'SPELLING', True),
-            (GameMode.TRANSLATION, GRAY, 'TRANSLATION', False),
+            (GameMode.TRANSLATION, TEAL, 'TRANSLATION', True),
         ]
 
         for mode, color, text_key, enabled in mode_configs:
@@ -669,20 +776,47 @@ class HebrewVoiceApp:
             display_text = self.get_text('THINKING')
             text_color = BRIGHT_YELLOW
         else:
-            display_text = self.get_text('SAY_SOMETHING')
+            # Show appropriate prompt based on mode
+            if self.current_mode == GameMode.TRANSLATION:
+                display_text = self.get_text('TRANSLATE_TO')
+            else:
+                display_text = self.get_text('SAY_SOMETHING')
             text_color = BRIGHT_BLUE
 
-        # Fit text to display
-        font_size = int(SCREEN_HEIGHT * 0.15)
-        while font_size > int(SCREEN_HEIGHT * 0.05):
-            font = pygame.font.Font(self.font_path, font_size)
-            text_surface = self._render_text(display_text, font, text_color)
-            if text_surface.get_width() < self.display_rect.width - 60:
-                break
-            font_size -= 10
+        # In translation mode showing results, display original above translation
+        if (self.current_mode == GameMode.TRANSLATION and
+            self.state == AppState.SHOWING and
+            self.translation_original and self.recognized_text):
+            # Draw original text (smaller, gray)
+            orig_font = pygame.font.Font(self.font_path, int(SCREEN_HEIGHT * 0.05))
+            orig_surface = self._render_text(self.translation_original, orig_font, GRAY)
+            orig_rect = orig_surface.get_rect(centerx=self.display_rect.centerx,
+                                               top=self.display_rect.top + 20)
+            self.screen.blit(orig_surface, orig_rect)
 
-        text_rect = text_surface.get_rect(center=self.display_rect.center)
-        self.screen.blit(text_surface, text_rect)
+            # Draw translation (main text, centered below)
+            font_size = int(SCREEN_HEIGHT * 0.12)
+            while font_size > int(SCREEN_HEIGHT * 0.05):
+                font = pygame.font.Font(self.font_path, font_size)
+                text_surface = self._render_text(display_text, font, text_color)
+                if text_surface.get_width() < self.display_rect.width - 60:
+                    break
+                font_size -= 10
+            text_rect = text_surface.get_rect(centerx=self.display_rect.centerx,
+                                               centery=self.display_rect.centery + 20)
+            self.screen.blit(text_surface, text_rect)
+        else:
+            # Normal display - fit text to display
+            font_size = int(SCREEN_HEIGHT * 0.15)
+            while font_size > int(SCREEN_HEIGHT * 0.05):
+                font = pygame.font.Font(self.font_path, font_size)
+                text_surface = self._render_text(display_text, font, text_color)
+                if text_surface.get_width() < self.display_rect.width - 60:
+                    break
+                font_size -= 10
+
+            text_rect = text_surface.get_rect(center=self.display_rect.center)
+            self.screen.blit(text_surface, text_rect)
 
         # Speaker button (only when showing recognized text)
         if self.state == AppState.SHOWING and self.last_recognized_text and HAS_GTTS:
@@ -739,11 +873,10 @@ class HebrewVoiceApp:
         if self.state == AppState.MODE_SELECT:
             for mode, rect in self.mode_buttons.items():
                 if rect.collidepoint(pos):
-                    if mode in [GameMode.FREE_SPEECH, GameMode.SPELLING]:
+                    if mode in [GameMode.FREE_SPEECH, GameMode.SPELLING, GameMode.TRANSLATION]:
                         self.current_mode = mode
                         self.state = AppState.READY
                         log.info(f"Selected mode: {mode.value}")
-                    # Translation mode coming soon
                     return
 
         else:
@@ -758,6 +891,7 @@ class HebrewVoiceApp:
                 self.current_mode = None
                 self.recognized_text = ""
                 self.last_recognized_text = ""
+                self.translation_original = ""
                 return
 
             # Continuous mode toggle
