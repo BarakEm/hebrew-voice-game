@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cast API Test</title>
+    
+    <!-- Google Cast SDK -->
+    <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
+    
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #1e1e1e;
+            color: #d4d4d4;
+        }
+        h1 { color: #4ec9b0; }
+        .log { 
+            background: #252526; 
+            padding: 10px; 
+            margin: 10px 0;
+            border-left: 3px solid #4ec9b0;
+            border-radius: 3px;
+        }
+        .error { border-left-color: #f44747; color: #f44747; }
+        .success { border-left-color: #89d185; color: #89d185; }
+        .warning { border-left-color: #f0ad4e; color: #f0ad4e; }
+        google-cast-launcher {
+            --connected-color: #89d185;
+            --disconnected-color: #4ec9b0;
+            width: 60px;
+            height: 60px;
+            cursor: pointer;
+        }
+        #castButton { 
+            margin: 20px 0;
+            display: inline-block;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎬 Cast API Test</h1>
+    <div id="logs"></div>
+    
+    <div>
+        <h2>Cast Button:</h2>
+        <google-cast-launcher id="castButton"></google-cast-launcher>
+    </div>
+
+    <script>
+        function log(message, type = 'log') {
+            const div = document.createElement('div');
+            div.className = `log ${type}`;
+            div.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            document.getElementById('logs').appendChild(div);
+            console.log(message);
+        }
+
+        log('Page loaded', 'success');
+        log('Waiting for Google Cast API...', 'warning');
+
+        // Test if Cast API callback is called
+        window['__onGCastApiAvailable'] = function(isAvailable) {
+            log(`Google Cast API available: ${isAvailable}`, isAvailable ? 'success' : 'error');
+            
+            if (!isAvailable) {
+                log('Cast API not available. Possible reasons:', 'error');
+                log('  - Not using Chrome browser', 'warning');
+                log('  - Cast extension disabled', 'warning');
+                log('  - Network issues', 'warning');
+                return;
+            }
+
+            try {
+                log('Initializing Cast Context...', 'warning');
+                const castContext = cast.framework.CastContext.getInstance();
+                
+                // Configure Cast options
+                castContext.setOptions({
+                    receiverApplicationId: chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
+                    autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
+                });
+                
+                log('Cast Context configured successfully', 'success');
+                
+                // Listen for cast state changes
+                castContext.addEventListener(
+                    cast.framework.CastContextEventType.CAST_STATE_CHANGED,
+                    (event) => {
+                        log(`Cast state changed: ${event.castState}`, 'success');
+                        
+                        switch (event.castState) {
+                            case cast.framework.CastState.CONNECTED:
+                                log('✅ CONNECTED to TV!', 'success');
+                                break;
+                            case cast.framework.CastState.CONNECTING:
+                                log('🔄 CONNECTING to TV...', 'warning');
+                                break;
+                            case cast.framework.CastState.NOT_CONNECTED:
+                                log('📺 NOT_CONNECTED - No active connection', 'warning');
+                                break;
+                            case cast.framework.CastState.NO_DEVICES_AVAILABLE:
+                                log('❌ NO_DEVICES_AVAILABLE - No Chromecast found', 'error');
+                                log('Troubleshooting steps:', 'warning');
+                                log('  1. Check Chromecast is powered on', 'warning');
+                                log('  2. Ensure same WiFi network', 'warning');
+                                log('  3. Check Google Home app can see device', 'warning');
+                                log('  4. Try restarting Chromecast', 'warning');
+                                break;
+                        }
+                    }
+                );
+                
+                // Check initial state
+                const castState = castContext.getCastState();
+                log(`Initial Cast State: ${castState}`, 'success');
+                
+                // Log all possible states for reference
+                log('Cast States Reference:', 'warning');
+                log(`  - NO_DEVICES_AVAILABLE: ${cast.framework.CastState.NO_DEVICES_AVAILABLE}`, 'log');
+                log(`  - NOT_CONNECTED: ${cast.framework.CastState.NOT_CONNECTED}`, 'log');
+                log(`  - CONNECTING: ${cast.framework.CastState.CONNECTING}`, 'log');
+                log(`  - CONNECTED: ${cast.framework.CastState.CONNECTED}`, 'log');
+                
+            } catch (error) {
+                log(`Error during Cast initialization: ${error.message}`, 'error');
+                log(error.stack, 'error');
+            }
+        };
+
+        // Timeout check in case API never loads
+        setTimeout(() => {
+            if (!window.cast || !window.cast.framework) {
+                log('⚠️ TIMEOUT: Cast API did not load after 10 seconds', 'error');
+                log('This indicates a network or browser issue', 'error');
+            }
+        }, 10000);
+    </script>
+</body>
+</html>
