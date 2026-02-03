@@ -338,6 +338,7 @@
             <button class="back-button" onclick="goBack()">← חזרה</button>
             <button class="continuous-btn" id="continuousBtn" onclick="toggleContinuous()">∞</button>
             <google-cast-launcher id="castButton"></google-cast-launcher>
+            <span id="castStatus" style="display: none; font-size: 12px; color: #999;"></span>
             <div class="lang-toggle">
                 <button class="lang-btn active" id="btnHebrew" onclick="setLanguage('hebrew')">עברית</button>
                 <button class="lang-btn" id="btnEnglish" onclick="setLanguage('english')">English</button>
@@ -366,11 +367,28 @@
             castApiCallbackReceived = true;
             console.log('✅ Google Cast API callback received');
             console.log('Google Cast API availability:', isAvailable);
+            
+            const statusEl = document.getElementById('castStatus');
+            
             if (isAvailable) {
                 initializeCastApi();
+                if (statusEl) {
+                    statusEl.textContent = '✓ Cast ready';
+                    statusEl.style.display = 'inline';
+                    statusEl.style.color = '#32cd32';
+                    statusEl.title = 'Cast is ready. Click the cast button to connect.';
+                    // Hide after 3 seconds
+                    setTimeout(() => statusEl.style.display = 'none', 3000);
+                }
             } else {
                 console.warn('⚠️ Google Cast API not available');
                 console.warn('Please use Chrome browser for Cast support');
+                if (statusEl) {
+                    statusEl.textContent = '⚠️ Use Chrome';
+                    statusEl.style.display = 'inline';
+                    statusEl.style.color = '#ffa500';
+                    statusEl.title = 'Cast requires Chrome browser';
+                }
             }
         };
         
@@ -383,6 +401,14 @@
                 console.error('  2. Network/CORS issue blocking the script');
                 console.error('  3. Script loaded but callback timing issue');
                 console.log('Cast SDK script URL: https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1');
+                
+                // Show user-friendly status
+                const statusEl = document.getElementById('castStatus');
+                if (statusEl) {
+                    statusEl.textContent = '⚠️ Cast unavailable';
+                    statusEl.style.display = 'inline';
+                    statusEl.title = 'Cast API did not load. Use Chrome browser on same WiFi as Chromecast.';
+                }
             }
         }, 5000);
 
