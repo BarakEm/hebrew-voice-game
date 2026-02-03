@@ -62,6 +62,19 @@ python3 hebrew_voice_app.py
 ### Option 3: Desktop Browser
 Open `hebrew_voice_app.html` directly in Chrome.
 
+### Option 4: Cast to TV
+Cast the web app to your TV for a big-screen experience!
+
+**→ Start here: [CASTING_INDEX.md](CASTING_INDEX.md)** - Complete TV casting hub
+
+Quick options available:
+- **Chrome Cast Tab** - Open app in Chrome → ⋮ → Cast (easiest!)
+- **AirPlay** - iOS screen mirroring to Apple TV
+- **HDMI Cable** - Zero latency, perfect quality
+- **Google Cast API** - Professional integration with code examples
+
+See full documentation for 6 methods, comparison table, and working demo.
+
 ## Game Modes
 
 ### Mode 1: Free Speech (Current)
@@ -132,6 +145,20 @@ Key settings in `hebrew_voice_app.py`:
 - `MAX_RECORDING_TIME = 10` - Auto-stop after N seconds
 - `RECORD_SAMPLE_RATE = 44100` - Audio sample rate
 - `BUTTON_HEIGHT = 25%` - Button size relative to screen
+
+## Documentation
+
+### TV Casting Resources 📺
+**→ [CASTING_INDEX.md](CASTING_INDEX.md)** - Start here! Navigation hub for all TV casting documentation
+
+Additional resources:
+- **[CASTING_COMPARISON.md](CASTING_COMPARISON.md)** - 📊 Compare all 6 casting methods
+- **[TV_CASTING_GUIDE.md](TV_CASTING_GUIDE.md)** - 📖 Complete implementation guide with code
+- **[CASTING_QUICK_START.md](CASTING_QUICK_START.md)** - ⚡ Quick reference (60-second start)
+- **[casting_demo.html](casting_demo.html)** - 🎯 Live Google Cast demo
+
+### Development
+- **[CLAUDE.md](CLAUDE.md)** - Development guidelines for contributors
 
 ## License
 
