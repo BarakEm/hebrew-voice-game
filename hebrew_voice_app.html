@@ -194,6 +194,13 @@
             height: clamp(40px, 8vmin, 60px);
             cursor: pointer;
         }
+        
+        /* Cast status indicator */
+        .cast-status {
+            display: none;
+            font-size: 12px;
+            color: #999;
+        }
 
         /* Display area */
         .display-area {
@@ -338,6 +345,7 @@
             <button class="back-button" onclick="goBack()">← חזרה</button>
             <button class="continuous-btn" id="continuousBtn" onclick="toggleContinuous()">∞</button>
             <google-cast-launcher id="castButton"></google-cast-launcher>
+            <span id="castStatus" class="cast-status"></span>
             <div class="lang-toggle">
                 <button class="lang-btn active" id="btnHebrew" onclick="setLanguage('hebrew')">עברית</button>
                 <button class="lang-btn" id="btnEnglish" onclick="setLanguage('english')">English</button>
@@ -358,35 +366,87 @@
         // ===========================================
         // GOOGLE CAST INITIALIZATION
         // ===========================================
+        
+        // Constants
+        const CAST_STATUS_AUTO_HIDE_DELAY = 3000; // milliseconds
+        const CAST_API_LOAD_TIMEOUT = 5000; // milliseconds
+        
+        // Track if Cast API callback was called
+        let castApiCallbackReceived = false;
+        
         window['__onGCastApiAvailable'] = function(isAvailable) {
+            castApiCallbackReceived = true;
+            console.log('✅ Google Cast API callback received');
             console.log('Google Cast API availability:', isAvailable);
+            
+            const statusEl = document.getElementById('castStatus');
+            
             if (isAvailable) {
                 initializeCastApi();
+                if (statusEl) {
+                    statusEl.textContent = '✓ Cast ready';
+                    statusEl.style.display = 'inline';
+                    statusEl.style.color = '#32cd32';
+                    statusEl.title = 'Cast is ready. Click the cast button to connect.';
+                    // Hide after delay
+                    setTimeout(() => statusEl.style.display = 'none', CAST_STATUS_AUTO_HIDE_DELAY);
+                }
             } else {
                 console.warn('⚠️ Google Cast API not available');
                 console.warn('Please use Chrome browser for Cast support');
+                if (statusEl) {
+                    statusEl.textContent = '⚠️ Use Chrome';
+                    statusEl.style.display = 'inline';
+                    statusEl.style.color = '#ffa500';
+                    statusEl.title = 'Cast requires Chrome browser';
+                }
             }
         };
+        
+        // Check if callback was called after a timeout
+        setTimeout(function() {
+            if (!castApiCallbackReceived) {
+                console.error('❌ Google Cast API callback was NEVER called');
+                console.error('This usually means:');
+                console.error('  1. Cast SDK script failed to load');
+                console.error('  2. Network/CORS issue blocking the script');
+                console.error('  3. Script loaded but callback timing issue');
+                console.log('Cast SDK script URL: https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1');
+                
+                // Show user-friendly status
+                const statusEl = document.getElementById('castStatus');
+                if (statusEl) {
+                    statusEl.textContent = '⚠️ Cast unavailable';
+                    statusEl.style.display = 'inline';
+                    statusEl.title = 'Cast API did not load. Use Chrome browser on same WiFi as Chromecast.';
+                }
+            }
+        }, CAST_API_LOAD_TIMEOUT);
 
         function initializeCastApi() {
-            const castContext = cast.framework.CastContext.getInstance();
-            
-            // Configure Cast options
-            castContext.setOptions({
-                receiverApplicationId: chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
-                autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
-            });
-            
-            // Listen for cast state changes
-            castContext.addEventListener(
-                cast.framework.CastContextEventType.CAST_STATE_CHANGED,
-                onCastStateChanged
-            );
-            
-            // Check initial state
-            const castState = castContext.getCastState();
-            console.log('Google Cast initialized. Initial state:', castState);
-            handleCastState(castState);
+            try {
+                const castContext = cast.framework.CastContext.getInstance();
+                
+                // Configure Cast options
+                castContext.setOptions({
+                    receiverApplicationId: chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
+                    autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
+                });
+                
+                // Listen for cast state changes
+                castContext.addEventListener(
+                    cast.framework.CastContextEventType.CAST_STATE_CHANGED,
+                    onCastStateChanged
+                );
+                
+                // Check initial state
+                const castState = castContext.getCastState();
+                console.log('Google Cast initialized. Initial state:', castState);
+                handleCastState(castState);
+            } catch (error) {
+                console.error('❌ Failed to initialize Cast API:', error);
+                console.error('Error details:', error.message);
+            }
         }
 
         function onCastStateChanged(event) {
@@ -395,23 +455,47 @@
         }
 
         function handleCastState(castState) {
+            const statusEl = document.getElementById('castStatus');
+            
             switch (castState) {
                 case cast.framework.CastState.CONNECTED:
                     console.log('✅ Connected to TV!');
                     optimizeForTV();
+                    if (statusEl) {
+                        statusEl.textContent = '📺 Connected';
+                        statusEl.style.display = 'inline';
+                        statusEl.style.color = '#32cd32';
+                        statusEl.title = 'Connected to TV';
+                    }
                     break;
                 case cast.framework.CastState.CONNECTING:
                     console.log('🔄 Connecting to TV...');
+                    if (statusEl) {
+                        statusEl.textContent = '🔄 Connecting...';
+                        statusEl.style.display = 'inline';
+                        statusEl.style.color = '#ffa500';
+                        statusEl.title = 'Connecting to TV';
+                    }
                     break;
                 case cast.framework.CastState.NOT_CONNECTED:
                     console.log('📺 Disconnected from TV');
                     resetTVOptimization();
+                    if (statusEl) {
+                        // Hide status when not connected (cast button is enough indicator)
+                        statusEl.style.display = 'none';
+                    }
                     break;
                 case cast.framework.CastState.NO_DEVICES_AVAILABLE:
                     console.log('❌ No Chromecast devices found on network');
                     console.log('💡 Make sure your Chromecast/Google TV is:');
                     console.log('   - Powered on and connected to the same WiFi network');
                     console.log('   - Visible in Google Home app');
+                    if (statusEl) {
+                        statusEl.textContent = '⚠️ No devices';
+                        statusEl.style.display = 'inline';
+                        statusEl.style.color = '#ff5050';
+                        statusEl.title = 'No Chromecast found. Check WiFi and device.';
+                    }
                     break;
             }
         }
