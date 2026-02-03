@@ -444,23 +444,47 @@
         }
 
         function handleCastState(castState) {
+            const statusEl = document.getElementById('castStatus');
+            
             switch (castState) {
                 case cast.framework.CastState.CONNECTED:
                     console.log('✅ Connected to TV!');
                     optimizeForTV();
+                    if (statusEl) {
+                        statusEl.textContent = '📺 Connected';
+                        statusEl.style.display = 'inline';
+                        statusEl.style.color = '#32cd32';
+                        statusEl.title = 'Connected to TV';
+                    }
                     break;
                 case cast.framework.CastState.CONNECTING:
                     console.log('🔄 Connecting to TV...');
+                    if (statusEl) {
+                        statusEl.textContent = '🔄 Connecting...';
+                        statusEl.style.display = 'inline';
+                        statusEl.style.color = '#ffa500';
+                        statusEl.title = 'Connecting to TV';
+                    }
                     break;
                 case cast.framework.CastState.NOT_CONNECTED:
                     console.log('📺 Disconnected from TV');
                     resetTVOptimization();
+                    if (statusEl) {
+                        // Hide status when not connected (cast button is enough indicator)
+                        statusEl.style.display = 'none';
+                    }
                     break;
                 case cast.framework.CastState.NO_DEVICES_AVAILABLE:
                     console.log('❌ No Chromecast devices found on network');
                     console.log('💡 Make sure your Chromecast/Google TV is:');
                     console.log('   - Powered on and connected to the same WiFi network');
                     console.log('   - Visible in Google Home app');
+                    if (statusEl) {
+                        statusEl.textContent = '⚠️ No devices';
+                        statusEl.style.display = 'inline';
+                        statusEl.style.color = '#ff5050';
+                        statusEl.title = 'No Chromecast found. Check WiFi and device.';
+                    }
                     break;
             }
         }
