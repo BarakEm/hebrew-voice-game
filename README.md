@@ -144,9 +144,13 @@ Key settings in `hebrew_voice_app.py`:
 
 ## Documentation
 
-- **[TV_CASTING_GUIDE.md](TV_CASTING_GUIDE.md)** - Complete guide to casting to TV (6 methods)
-- **[CASTING_QUICK_START.md](CASTING_QUICK_START.md)** - Quick reference for casting
-- **[casting_demo.html](casting_demo.html)** - Live demo of Google Cast integration
+### TV Casting
+- **[CASTING_COMPARISON.md](CASTING_COMPARISON.md)** - 📊 Compare all casting methods (recommended starting point)
+- **[TV_CASTING_GUIDE.md](TV_CASTING_GUIDE.md)** - 📖 Complete guide to casting to TV (6 methods with code examples)
+- **[CASTING_QUICK_START.md](CASTING_QUICK_START.md)** - ⚡ Quick reference card for casting
+- **[casting_demo.html](casting_demo.html)** - 🎯 Live demo of Google Cast integration
+
+### Development
 - **[CLAUDE.md](CLAUDE.md)** - Development guidelines for contributors
 
 ## License
