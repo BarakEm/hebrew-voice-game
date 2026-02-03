@@ -142,6 +142,13 @@ Key settings in `hebrew_voice_app.py`:
 - `RECORD_SAMPLE_RATE = 44100` - Audio sample rate
 - `BUTTON_HEIGHT = 25%` - Button size relative to screen
 
+## Documentation
+
+- **[TV_CASTING_GUIDE.md](TV_CASTING_GUIDE.md)** - Complete guide to casting to TV (6 methods)
+- **[CASTING_QUICK_START.md](CASTING_QUICK_START.md)** - Quick reference for casting
+- **[casting_demo.html](casting_demo.html)** - Live demo of Google Cast integration
+- **[CLAUDE.md](CLAUDE.md)** - Development guidelines for contributors
+
 ## License
 
 MIT License - see [LICENSE](LICENSE)
