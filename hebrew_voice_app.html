@@ -194,6 +194,13 @@
             height: clamp(40px, 8vmin, 60px);
             cursor: pointer;
         }
+        
+        /* Cast status indicator */
+        .cast-status {
+            display: none;
+            font-size: 12px;
+            color: #999;
+        }
 
         /* Display area */
         .display-area {
@@ -338,7 +345,7 @@
             <button class="back-button" onclick="goBack()">← חזרה</button>
             <button class="continuous-btn" id="continuousBtn" onclick="toggleContinuous()">∞</button>
             <google-cast-launcher id="castButton"></google-cast-launcher>
-            <span id="castStatus" style="display: none; font-size: 12px; color: #999;"></span>
+            <span id="castStatus" class="cast-status"></span>
             <div class="lang-toggle">
                 <button class="lang-btn active" id="btnHebrew" onclick="setLanguage('hebrew')">עברית</button>
                 <button class="lang-btn" id="btnEnglish" onclick="setLanguage('english')">English</button>
@@ -360,6 +367,10 @@
         // GOOGLE CAST INITIALIZATION
         // ===========================================
         
+        // Constants
+        const CAST_STATUS_AUTO_HIDE_DELAY = 3000; // milliseconds
+        const CAST_API_LOAD_TIMEOUT = 5000; // milliseconds
+        
         // Track if Cast API callback was called
         let castApiCallbackReceived = false;
         
@@ -377,8 +388,8 @@
                     statusEl.style.display = 'inline';
                     statusEl.style.color = '#32cd32';
                     statusEl.title = 'Cast is ready. Click the cast button to connect.';
-                    // Hide after 3 seconds
-                    setTimeout(() => statusEl.style.display = 'none', 3000);
+                    // Hide after delay
+                    setTimeout(() => statusEl.style.display = 'none', CAST_STATUS_AUTO_HIDE_DELAY);
                 }
             } else {
                 console.warn('⚠️ Google Cast API not available');
@@ -410,7 +421,7 @@
                     statusEl.title = 'Cast API did not load. Use Chrome browser on same WiFi as Chromecast.';
                 }
             }
-        }, 5000);
+        }, CAST_API_LOAD_TIMEOUT);
 
         function initializeCastApi() {
             try {
