@@ -358,7 +358,13 @@
         // ===========================================
         // GOOGLE CAST INITIALIZATION
         // ===========================================
+        
+        // Track if Cast API callback was called
+        let castApiCallbackReceived = false;
+        
         window['__onGCastApiAvailable'] = function(isAvailable) {
+            castApiCallbackReceived = true;
+            console.log('✅ Google Cast API callback received');
             console.log('Google Cast API availability:', isAvailable);
             if (isAvailable) {
                 initializeCastApi();
@@ -367,26 +373,43 @@
                 console.warn('Please use Chrome browser for Cast support');
             }
         };
+        
+        // Check if callback was called after a timeout
+        setTimeout(function() {
+            if (!castApiCallbackReceived) {
+                console.error('❌ Google Cast API callback was NEVER called');
+                console.error('This usually means:');
+                console.error('  1. Cast SDK script failed to load');
+                console.error('  2. Network/CORS issue blocking the script');
+                console.error('  3. Script loaded but callback timing issue');
+                console.log('Cast SDK script URL: https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1');
+            }
+        }, 5000);
 
         function initializeCastApi() {
-            const castContext = cast.framework.CastContext.getInstance();
-            
-            // Configure Cast options
-            castContext.setOptions({
-                receiverApplicationId: chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
-                autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
-            });
-            
-            // Listen for cast state changes
-            castContext.addEventListener(
-                cast.framework.CastContextEventType.CAST_STATE_CHANGED,
-                onCastStateChanged
-            );
-            
-            // Check initial state
-            const castState = castContext.getCastState();
-            console.log('Google Cast initialized. Initial state:', castState);
-            handleCastState(castState);
+            try {
+                const castContext = cast.framework.CastContext.getInstance();
+                
+                // Configure Cast options
+                castContext.setOptions({
+                    receiverApplicationId: chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
+                    autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
+                });
+                
+                // Listen for cast state changes
+                castContext.addEventListener(
+                    cast.framework.CastContextEventType.CAST_STATE_CHANGED,
+                    onCastStateChanged
+                );
+                
+                // Check initial state
+                const castState = castContext.getCastState();
+                console.log('Google Cast initialized. Initial state:', castState);
+                handleCastState(castState);
+            } catch (error) {
+                console.error('❌ Failed to initialize Cast API:', error);
+                console.error('Error details:', error.message);
+            }
         }
 
         function onCastStateChanged(event) {
