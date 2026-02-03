@@ -63,13 +63,17 @@ python3 hebrew_voice_app.py
 Open `hebrew_voice_app.html` directly in Chrome.
 
 ### Option 4: Cast to TV
-Cast the web app to your TV for a big-screen experience! See **[TV_CASTING_GUIDE.md](TV_CASTING_GUIDE.md)** for:
-- Native browser casting (Chrome Cast, AirPlay)
-- Google Cast API integration
-- HDMI cable connection
-- Raspberry Pi TV setup
+Cast the web app to your TV for a big-screen experience!
 
-**Quick Start:** Open the web app in Chrome and tap ⋮ → Cast → Select your TV
+**→ Start here: [CASTING_INDEX.md](CASTING_INDEX.md)** - Complete TV casting hub
+
+Quick options available:
+- **Chrome Cast Tab** - Open app in Chrome → ⋮ → Cast (easiest!)
+- **AirPlay** - iOS screen mirroring to Apple TV
+- **HDMI Cable** - Zero latency, perfect quality
+- **Google Cast API** - Professional integration with code examples
+
+See full documentation for 6 methods, comparison table, and working demo.
 
 ## Game Modes
 
@@ -144,11 +148,14 @@ Key settings in `hebrew_voice_app.py`:
 
 ## Documentation
 
-### TV Casting
-- **[CASTING_COMPARISON.md](CASTING_COMPARISON.md)** - 📊 Compare all casting methods (recommended starting point)
-- **[TV_CASTING_GUIDE.md](TV_CASTING_GUIDE.md)** - 📖 Complete guide to casting to TV (6 methods with code examples)
-- **[CASTING_QUICK_START.md](CASTING_QUICK_START.md)** - ⚡ Quick reference card for casting
-- **[casting_demo.html](casting_demo.html)** - 🎯 Live demo of Google Cast integration
+### TV Casting Resources 📺
+**→ [CASTING_INDEX.md](CASTING_INDEX.md)** - Start here! Navigation hub for all TV casting documentation
+
+Additional resources:
+- **[CASTING_COMPARISON.md](CASTING_COMPARISON.md)** - 📊 Compare all 6 casting methods
+- **[TV_CASTING_GUIDE.md](TV_CASTING_GUIDE.md)** - 📖 Complete implementation guide with code
+- **[CASTING_QUICK_START.md](CASTING_QUICK_START.md)** - ⚡ Quick reference (60-second start)
+- **[casting_demo.html](casting_demo.html)** - 🎯 Live Google Cast demo
 
 ### Development
 - **[CLAUDE.md](CLAUDE.md)** - Development guidelines for contributors
