@@ -386,13 +386,16 @@
             // Check initial state
             const castState = castContext.getCastState();
             console.log('Google Cast initialized. Initial state:', castState);
-            onCastStateChanged({ castState: castState });
+            handleCastState(castState);
         }
 
         function onCastStateChanged(event) {
             console.log('Cast state changed:', event.castState);
-            
-            switch (event.castState) {
+            handleCastState(event.castState);
+        }
+
+        function handleCastState(castState) {
+            switch (castState) {
                 case cast.framework.CastState.CONNECTED:
                     console.log('✅ Connected to TV!');
                     optimizeForTV();
