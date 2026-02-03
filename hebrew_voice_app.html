@@ -359,8 +359,12 @@
         // GOOGLE CAST INITIALIZATION
         // ===========================================
         window['__onGCastApiAvailable'] = function(isAvailable) {
+            console.log('Google Cast API availability:', isAvailable);
             if (isAvailable) {
                 initializeCastApi();
+            } else {
+                console.warn('⚠️ Google Cast API not available');
+                console.warn('Please use Chrome browser for Cast support');
             }
         };
 
@@ -379,7 +383,10 @@
                 onCastStateChanged
             );
             
-            console.log('Google Cast initialized');
+            // Check initial state
+            const castState = castContext.getCastState();
+            console.log('Google Cast initialized. Initial state:', castState);
+            onCastStateChanged({ castState: castState });
         }
 
         function onCastStateChanged(event) {
@@ -387,12 +394,21 @@
             
             switch (event.castState) {
                 case cast.framework.CastState.CONNECTED:
-                    console.log('Connected to TV!');
+                    console.log('✅ Connected to TV!');
                     optimizeForTV();
                     break;
+                case cast.framework.CastState.CONNECTING:
+                    console.log('🔄 Connecting to TV...');
+                    break;
                 case cast.framework.CastState.NOT_CONNECTED:
-                    console.log('Disconnected from TV');
+                    console.log('📺 Disconnected from TV');
                     resetTVOptimization();
+                    break;
+                case cast.framework.CastState.NO_DEVICES_AVAILABLE:
+                    console.log('❌ No Chromecast devices found on network');
+                    console.log('💡 Make sure your Chromecast/Google TV is:');
+                    console.log('   - Powered on and connected to the same WiFi network');
+                    console.log('   - Visible in Google Home app');
                     break;
             }
         }
