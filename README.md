@@ -67,6 +67,17 @@ Cast the web app to your TV for a big-screen experience!
 
 **→ Start here: [CASTING_INDEX.md](CASTING_INDEX.md)** - Complete TV casting hub
 
+#### Cast Status Indicator ⭐ NEW
+The app now shows real-time cast status:
+- ✓ Cast ready - Ready to connect
+- 🔄 Connecting... - Connection in progress
+- 📺 Connected - Successfully connected to TV
+- ⚠️ No devices - No Chromecast found
+- ⚠️ Use Chrome - Chrome browser required
+
+See [cast_status_demo.html](cast_status_demo.html) for visual examples!
+
+#### Quick Casting Options
 Quick options available:
 - **Chrome Cast Tab** - Open app in Chrome → ⋮ → Cast (easiest!)
 - **AirPlay** - iOS screen mirroring to Apple TV
