@@ -7,6 +7,10 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#f0f8ff">
     <title>Hebrew Voice Game</title>
+    
+    <!-- Google Cast SDK -->
+    <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
+    
     <style>
         * {
             margin: 0;
@@ -180,6 +184,15 @@
             50% { transform: scale(1.05); box-shadow: 0 0 15px 5px rgba(155, 89, 182, 0.3); }
         }
 
+        /* Cast button */
+        google-cast-launcher {
+            --connected-color: #32cd32;
+            --disconnected-color: #6495ed;
+            width: clamp(40px, 8vmin, 60px);
+            height: clamp(40px, 8vmin, 60px);
+            cursor: pointer;
+        }
+
         /* Display area */
         .display-area {
             flex: 1;
@@ -322,6 +335,7 @@
         <div class="top-bar">
             <button class="back-button" onclick="goBack()">← חזרה</button>
             <button class="continuous-btn" id="continuousBtn" onclick="toggleContinuous()">∞</button>
+            <google-cast-launcher id="castButton"></google-cast-launcher>
             <div class="lang-toggle">
                 <button class="lang-btn active" id="btnHebrew" onclick="setLanguage('hebrew')">עברית</button>
                 <button class="lang-btn" id="btnEnglish" onclick="setLanguage('english')">English</button>
@@ -339,6 +353,60 @@
     </div>
 
     <script>
+        // ===========================================
+        // GOOGLE CAST INITIALIZATION
+        // ===========================================
+        window['__onGCastApiAvailable'] = function(isAvailable) {
+            if (isAvailable) {
+                initializeCastApi();
+            }
+        };
+
+        function initializeCastApi() {
+            const castContext = cast.framework.CastContext.getInstance();
+            
+            // Configure Cast options
+            castContext.setOptions({
+                receiverApplicationId: chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
+                autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
+            });
+            
+            // Listen for cast state changes
+            castContext.addEventListener(
+                cast.framework.CastContextEventType.CAST_STATE_CHANGED,
+                onCastStateChanged
+            );
+            
+            console.log('Google Cast initialized');
+        }
+
+        function onCastStateChanged(event) {
+            console.log('Cast state changed:', event.castState);
+            
+            switch (event.castState) {
+                case cast.framework.CastState.CONNECTED:
+                    console.log('Connected to TV!');
+                    optimizeForTV();
+                    break;
+                case cast.framework.CastState.NOT_CONNECTED:
+                    console.log('Disconnected from TV');
+                    resetTVOptimization();
+                    break;
+            }
+        }
+
+        function optimizeForTV() {
+            // Make content larger for TV viewing
+            document.documentElement.style.fontSize = '120%';
+            console.log('Optimized for TV display');
+        }
+
+        function resetTVOptimization() {
+            // Reset to normal size
+            document.documentElement.style.fontSize = '100%';
+            console.log('Reset to normal display');
+        }
+
         // ===========================================
         // LETTER NAMES FOR SPELLING
         // ===========================================
