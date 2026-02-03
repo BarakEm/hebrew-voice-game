@@ -62,6 +62,15 @@ python3 hebrew_voice_app.py
 ### Option 3: Desktop Browser
 Open `hebrew_voice_app.html` directly in Chrome.
 
+### Option 4: Cast to TV
+Cast the web app to your TV for a big-screen experience! See **[TV_CASTING_GUIDE.md](TV_CASTING_GUIDE.md)** for:
+- Native browser casting (Chrome Cast, AirPlay)
+- Google Cast API integration
+- HDMI cable connection
+- Raspberry Pi TV setup
+
+**Quick Start:** Open the web app in Chrome and tap ⋮ → Cast → Select your TV
+
 ## Game Modes
 
 ### Mode 1: Free Speech (Current)

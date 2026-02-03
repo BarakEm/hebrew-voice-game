@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Casting Demo - Hebrew Voice Game</title>
+    
+    <!-- Google Cast SDK -->
+    <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            color: white;
+        }
+        
+        .container {
+            max-width: 600px;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        
+        .subtitle {
+            text-align: center;
+            opacity: 0.9;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+        
+        .cast-section {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 15px;
+            padding: 30px;
+            margin: 20px 0;
+        }
+        
+        .cast-button-wrapper {
+            display: flex;
+            justify-content: center;
+            margin: 20px 0;
+        }
+        
+        google-cast-launcher {
+            --connected-color: #32cd32;
+            --disconnected-color: #ffffff;
+            width: 80px;
+            height: 80px;
+            cursor: pointer;
+        }
+        
+        .status {
+            text-align: center;
+            font-size: 1.3em;
+            font-weight: bold;
+            margin: 20px 0;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+        }
+        
+        .status.connected {
+            background: rgba(50, 205, 50, 0.3);
+        }
+        
+        .status.disconnected {
+            background: rgba(100, 149, 237, 0.3);
+        }
+        
+        .instructions {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        
+        .instructions h3 {
+            margin-bottom: 10px;
+            color: #ffd700;
+        }
+        
+        .instructions ol {
+            margin-left: 20px;
+            line-height: 1.8;
+        }
+        
+        .instructions li {
+            margin: 8px 0;
+        }
+        
+        .demo-content {
+            text-align: center;
+            padding: 40px;
+            font-size: 3em;
+            font-weight: bold;
+            background: linear-gradient(45deg, #ff6b6b, #4ecdc4, #45b7d1);
+            background-size: 200% 200%;
+            animation: gradient 3s ease infinite;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        @keyframes gradient {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        
+        .link {
+            text-align: center;
+            margin-top: 30px;
+        }
+        
+        .link a {
+            color: #ffd700;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 1.1em;
+            padding: 10px 20px;
+            border: 2px solid #ffd700;
+            border-radius: 25px;
+            display: inline-block;
+            transition: all 0.3s ease;
+        }
+        
+        .link a:hover {
+            background: #ffd700;
+            color: #667eea;
+            transform: translateY(-2px);
+        }
+        
+        .info-box {
+            background: rgba(255, 215, 0, 0.2);
+            border-left: 4px solid #ffd700;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 Casting Demo</h1>
+        <p class="subtitle">Hebrew Voice Game - TV Casting Test</p>
+        
+        <div class="cast-section">
+            <h2 style="text-align: center; margin-bottom: 20px;">Cast to TV</h2>
+            
+            <div class="cast-button-wrapper">
+                <google-cast-launcher id="castbutton"></google-cast-launcher>
+            </div>
+            
+            <div id="cast-status" class="status disconnected">
+                📺 Not Connected
+            </div>
+            
+            <div class="info-box">
+                <strong>Note:</strong> The cast button will only appear if:
+                <ul style="margin: 10px 0 0 20px;">
+                    <li>You're using Chrome browser</li>
+                    <li>A Chromecast device is on your network</li>
+                    <li>Both devices are on the same WiFi</li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="demo-content">
+            This will appear on TV! 📺
+        </div>
+        
+        <div class="instructions">
+            <h3>📋 How to Test Casting:</h3>
+            <ol>
+                <li>Ensure your Chromecast/Google TV is on the same WiFi network</li>
+                <li>Click the Cast button above (it may take a moment to appear)</li>
+                <li>Select your TV from the list</li>
+                <li>This page will be displayed on your TV</li>
+                <li>All interactions remain on your phone/computer</li>
+            </ol>
+        </div>
+        
+        <div class="instructions">
+            <h3>🔧 Troubleshooting:</h3>
+            <ol>
+                <li><strong>Cast button not visible?</strong> Make sure you're using Chrome and a Chromecast is available</li>
+                <li><strong>Can't find TV?</strong> Check both devices are on same WiFi network</li>
+                <li><strong>Connection fails?</strong> Restart Chrome and try again</li>
+                <li><strong>Poor quality?</strong> Check WiFi signal strength</li>
+            </ol>
+        </div>
+        
+        <div class="link">
+            <a href="hebrew_voice_app.html">← Back to Voice Game</a>
+        </div>
+        
+        <div class="link" style="margin-top: 15px;">
+            <a href="TV_CASTING_GUIDE.md" target="_blank">📖 Full Casting Guide</a>
+        </div>
+    </div>
+    
+    <script>
+        // Initialize Cast API when available
+        window['__onGCastApiAvailable'] = function(isAvailable) {
+            console.log('Cast API available:', isAvailable);
+            
+            if (isAvailable) {
+                initializeCastApi();
+            } else {
+                updateStatus('Cast API not available. Use Chrome browser.', 'disconnected');
+            }
+        };
+        
+        function initializeCastApi() {
+            const castContext = cast.framework.CastContext.getInstance();
+            
+            // Configure Cast options
+            castContext.setOptions({
+                receiverApplicationId: chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
+                autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
+            });
+            
+            // Listen for cast state changes
+            castContext.addEventListener(
+                cast.framework.CastContextEventType.CAST_STATE_CHANGED,
+                onCastStateChanged
+            );
+            
+            // Check initial state
+            const castState = castContext.getCastState();
+            console.log('Initial cast state:', castState);
+            updateStatusFromState(castState);
+        }
+        
+        function onCastStateChanged(event) {
+            console.log('Cast state changed:', event.castState);
+            updateStatusFromState(event.castState);
+        }
+        
+        function updateStatusFromState(state) {
+            switch (state) {
+                case cast.framework.CastState.CONNECTED:
+                    updateStatus('✅ Connected to TV!', 'connected');
+                    optimizeForTV();
+                    break;
+                case cast.framework.CastState.CONNECTING:
+                    updateStatus('🔄 Connecting...', 'disconnected');
+                    break;
+                case cast.framework.CastState.NOT_CONNECTED:
+                    updateStatus('📺 Not Connected', 'disconnected');
+                    resetTVOptimization();
+                    break;
+                case cast.framework.CastState.NO_DEVICES_AVAILABLE:
+                    updateStatus('❌ No Chromecast devices found', 'disconnected');
+                    break;
+            }
+        }
+        
+        function updateStatus(message, className) {
+            const statusEl = document.getElementById('cast-status');
+            statusEl.textContent = message;
+            statusEl.className = 'status ' + className;
+        }
+        
+        function optimizeForTV() {
+            // Make content larger for TV viewing
+            document.documentElement.style.fontSize = '120%';
+            console.log('Optimized for TV display');
+            
+            // You could also hide certain UI elements or adjust layout here
+        }
+        
+        function resetTVOptimization() {
+            // Reset to normal size
+            document.documentElement.style.fontSize = '100%';
+            console.log('Reset to normal display');
+        }
+        
+        // Handle page visibility (pause when tab is hidden)
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden) {
+                console.log('Page hidden - casting continues');
+            } else {
+                console.log('Page visible');
+            }
+        });
+    </script>
+</body>
+</html>
