@@ -329,7 +329,10 @@
 
     <!-- Mode Selection Screen -->
     <div id="modeScreen" class="mode-screen">
-        <div class="mode-title" id="modeTitle">בחר משחק</div>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div class="mode-title" id="modeTitle" style="flex:1;">בחר משחק</div>
+            <button class="tv-btn" onclick="handleInstallOrFullscreen()" title="Cast to TV">&#128250;</button>
+        </div>
         <div class="mode-buttons">
             <button class="mode-button free-speech" onclick="startMode('free-speech')">
                 <span class="icon">🎤</span>
@@ -351,7 +354,7 @@
         <div class="top-bar">
             <button class="back-button" onclick="goBack()">← חזרה</button>
             <button class="continuous-btn" id="continuousBtn" onclick="toggleContinuous()">&#8734;</button>
-            <button class="tv-btn" id="installBtn" onclick="handleInstallOrFullscreen()" title="Install / TV">&#128250;</button>
+            <button class="tv-btn" id="installBtn" onclick="handleInstallOrFullscreen()" title="Cast to TV">&#128250;</button>
             <div class="lang-toggle">
                 <button class="lang-btn active" id="btnHebrew" onclick="setLanguage('hebrew')">עברית</button>
                 <button class="lang-btn" id="btnEnglish" onclick="setLanguage('english')">English</button>
@@ -390,8 +393,17 @@
             console.log('Install prompt captured');
         });
 
+        // Detect if running inside the Android APK
+        const isAndroidApp = typeof AndroidBridge !== 'undefined' && AndroidBridge.isAndroidApp && AndroidBridge.isAndroidApp();
+
         function handleInstallOrFullscreen() {
-            // If we can install as PWA, do that
+            // Inside APK: open Android's screen cast / mirror settings
+            if (isAndroidApp) {
+                AndroidBridge.openCastSettings();
+                return;
+            }
+
+            // Browser: try PWA install
             if (deferredInstallPrompt) {
                 deferredInstallPrompt.prompt();
                 deferredInstallPrompt.userChoice.then(choice => {
@@ -401,7 +413,7 @@
                 return;
             }
 
-            // Otherwise toggle fullscreen (great for TV)
+            // Fallback: toggle fullscreen
             if (!document.fullscreenElement) {
                 document.documentElement.requestFullscreen().catch(err => {
                     console.log('Fullscreen not available:', err.message);

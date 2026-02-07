@@ -3,11 +3,14 @@ package com.barakem.hebrewvoicegame;
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.view.KeyEvent;
 import android.view.View;
+import android.webkit.JavascriptInterface;
 import android.webkit.PermissionRequest;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
@@ -61,6 +64,9 @@ public class MainActivity extends Activity {
             settings.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
         }
 
+        // Expose native Android functions to JavaScript
+        webView.addJavascriptInterface(new AndroidBridge(), "AndroidBridge");
+
         // Stay inside the app instead of opening browser
         webView.setWebViewClient(new WebViewClient());
 
@@ -73,9 +79,39 @@ public class MainActivity extends Activity {
         });
     }
 
+    /**
+     * Bridge between JavaScript in the WebView and native Android.
+     * The web app calls window.AndroidBridge.openCastSettings() when
+     * the user taps the TV/cast button.
+     */
+    private class AndroidBridge {
+        @JavascriptInterface
+        public void openCastSettings() {
+            try {
+                // Open Android's built-in Cast / screen mirror settings
+                Intent intent = new Intent(Settings.ACTION_CAST_SETTINGS);
+                startActivity(intent);
+            } catch (Exception e) {
+                // Fallback: open wireless display settings
+                try {
+                    Intent intent = new Intent("android.settings.WIFI_DISPLAY_SETTINGS");
+                    startActivity(intent);
+                } catch (Exception e2) {
+                    // Last resort: open general wireless settings
+                    Intent intent = new Intent(Settings.ACTION_WIRELESS_SETTINGS);
+                    startActivity(intent);
+                }
+            }
+        }
+
+        @JavascriptInterface
+        public boolean isAndroidApp() {
+            return true;
+        }
+    }
+
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        // Let the back button navigate within the webview first
         if (keyCode == KeyEvent.KEYCODE_BACK && webView.canGoBack()) {
             webView.goBack();
             return true;
