@@ -10,3 +10,10 @@ __pycache__/
 .DS_Store
 *.tmp
 .claude/
+
+# Android build artifacts
+android-tv-app/.gradle/
+android-tv-app/app/build/
+android-tv-app/build/
+android-tv-app/local.properties
+*.apk
