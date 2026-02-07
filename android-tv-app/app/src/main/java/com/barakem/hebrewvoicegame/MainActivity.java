@@ -18,11 +18,6 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
-import androidx.mediarouter.app.MediaRouteChooserDialog;
-import androidx.mediarouter.media.MediaControlIntent;
-import androidx.mediarouter.media.MediaRouteSelector;
-import androidx.mediarouter.media.MediaRouter;
-
 import java.util.Locale;
 
 public class MainActivity extends Activity {
@@ -31,8 +26,6 @@ public class MainActivity extends Activity {
     private WebView webView;
     private TextToSpeech tts;
     private boolean ttsReady = false;
-    private MediaRouter mediaRouter;
-    private MediaRouteSelector mediaRouteSelector;
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -64,14 +57,6 @@ public class MainActivity extends Activity {
                 tts.setLanguage(new Locale("he", "IL"));
             }
         });
-
-        // Initialize MediaRouter for cast discovery
-        mediaRouter = MediaRouter.getInstance(this);
-        mediaRouteSelector = new MediaRouteSelector.Builder()
-            .addControlCategory(MediaControlIntent.CATEGORY_LIVE_AUDIO)
-            .addControlCategory(MediaControlIntent.CATEGORY_LIVE_VIDEO)
-            .addControlCategory(MediaControlIntent.CATEGORY_REMOTE_PLAYBACK)
-            .build();
 
         webView = findViewById(R.id.webview);
         setupWebView();
@@ -156,24 +141,20 @@ public class MainActivity extends Activity {
         }
     }
 
+    /**
+     * Open the system Cast / screen-mirror settings.
+     * The OS handles the full Chromecast connection lifecycle via Google Play
+     * Services, so screen mirroring to Mibox (and other Chromecast-built-in
+     * devices) works reliably without needing the Cast SDK in-app.
+     */
     private void showCastDialog() {
         try {
-            MediaRouteChooserDialog dialog = new MediaRouteChooserDialog(this);
-            dialog.setRouteSelector(mediaRouteSelector);
-            dialog.show();
+            startActivity(new Intent(Settings.ACTION_CAST_SETTINGS));
         } catch (Exception e) {
-            // Fallback: open Android's built-in Cast / screen mirror settings
             try {
-                Intent intent = new Intent(Settings.ACTION_CAST_SETTINGS);
-                startActivity(intent);
+                startActivity(new Intent("android.settings.WIFI_DISPLAY_SETTINGS"));
             } catch (Exception e2) {
-                try {
-                    Intent intent = new Intent("android.settings.WIFI_DISPLAY_SETTINGS");
-                    startActivity(intent);
-                } catch (Exception e3) {
-                    Intent intent = new Intent(Settings.ACTION_WIRELESS_SETTINGS);
-                    startActivity(intent);
-                }
+                startActivity(new Intent(Settings.ACTION_WIRELESS_SETTINGS));
             }
         }
     }
