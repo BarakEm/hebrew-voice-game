@@ -530,16 +530,55 @@
         // ===========================================
         const synth = window.speechSynthesis;
 
+        // Use native Android TTS when running inside the APK
+        const useNativeTts = isAndroidApp && typeof AndroidBridge.speak === 'function';
+
+        // Estimate speech duration for native TTS (no onend callback available)
+        function estimateSpeechDuration(text, rate = 0.8) {
+            // ~100ms per character at normal rate, adjusted for speech rate
+            return Math.max(800, (text.length * 100) / rate + 500);
+        }
+
+        function nativeSpeak(text, langCode, onComplete = null) {
+            AndroidBridge.speak(text, langCode);
+            if (onComplete) {
+                setTimeout(onComplete, estimateSpeechDuration(text));
+            }
+        }
+
+        function stopTts() {
+            if (useNativeTts) {
+                AndroidBridge.stopSpeaking();
+            } else if (synth) {
+                synth.cancel();
+            }
+        }
+
         function speakText(text = null, onComplete = null) {
             const textToSpeak = text || lastRecognizedText;
-            if (!textToSpeak || !synth) {
+            if (!textToSpeak) {
                 if (onComplete) onComplete();
                 return;
             }
 
-            synth.cancel();
+            stopTts();
+            const langCode = LANGUAGES[currentLang].code;
+
+            if (useNativeTts) {
+                nativeSpeak(textToSpeak, langCode, () => {
+                    if (onComplete) {
+                        onComplete();
+                    } else if (continuousMode) {
+                        restartListeningAfterDelay();
+                    }
+                });
+                return;
+            }
+
+            if (!synth) { if (onComplete) onComplete(); return; }
+
             const utterance = new SpeechSynthesisUtterance(textToSpeak);
-            utterance.lang = LANGUAGES[currentLang].code;
+            utterance.lang = langCode;
             utterance.rate = 0.8;
 
             utterance.onend = () => {
@@ -576,15 +615,49 @@
 
         // Speak and spell: say each word then spell it letter by letter
         function speakAndSpell(text) {
-            if (!text || !synth) {
+            if (!text) {
                 if (continuousMode) restartListeningAfterDelay();
                 return;
             }
 
-            synth.cancel();
+            stopTts();
             const words = text.split(/\s+/).filter(w => w.length > 0);
             const langCode = LANGUAGES[currentLang].code;
             const isHebrew = currentLang === 'hebrew';
+
+            if (useNativeTts) {
+                // For native TTS, queue all speech sequentially with delays
+                let totalDelay = 0;
+                words.forEach((word, wordIndex) => {
+                    // Say the whole word
+                    setTimeout(() => AndroidBridge.speak(word, langCode), totalDelay);
+                    totalDelay += estimateSpeechDuration(word);
+
+                    // Spell each letter
+                    const letters = [...word];
+                    letters.forEach(letter => {
+                        let letterName;
+                        if (isHebrew && HEBREW_LETTER_NAMES[letter]) {
+                            letterName = HEBREW_LETTER_NAMES[letter];
+                        } else {
+                            letterName = letter.toUpperCase();
+                        }
+                        setTimeout(() => AndroidBridge.speak(letterName, langCode), totalDelay);
+                        totalDelay += estimateSpeechDuration(letterName, 0.7);
+                    });
+
+                    if (wordIndex < words.length - 1) {
+                        totalDelay += 500; // pause between words
+                    }
+                });
+
+                if (continuousMode) {
+                    setTimeout(() => restartListeningAfterDelay(), totalDelay);
+                }
+                return;
+            }
+
+            if (!synth) { if (continuousMode) restartListeningAfterDelay(); return; }
 
             let lastUtterance = null;
 
@@ -663,12 +736,26 @@
 
         // Speak text in a specific language (not necessarily current language)
         function speakInLanguage(text, langCode, onComplete = null) {
-            if (!text || !synth) {
+            if (!text) {
                 if (onComplete) onComplete();
                 return;
             }
 
-            synth.cancel();
+            stopTts();
+
+            if (useNativeTts) {
+                nativeSpeak(text, langCode, () => {
+                    if (onComplete) {
+                        onComplete();
+                    } else if (continuousMode) {
+                        restartListeningAfterDelay();
+                    }
+                });
+                return;
+            }
+
+            if (!synth) { if (onComplete) onComplete(); return; }
+
             const utterance = new SpeechSynthesisUtterance(text);
             utterance.lang = langCode;
             utterance.rate = 0.8;

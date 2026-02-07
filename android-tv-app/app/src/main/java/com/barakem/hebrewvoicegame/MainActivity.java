@@ -8,6 +8,7 @@ import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
+import android.speech.tts.TextToSpeech;
 import android.view.KeyEvent;
 import android.view.View;
 import android.webkit.JavascriptInterface;
@@ -17,10 +18,21 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
+import androidx.mediarouter.app.MediaRouteChooserDialog;
+import androidx.mediarouter.media.MediaControlIntent;
+import androidx.mediarouter.media.MediaRouteSelector;
+import androidx.mediarouter.media.MediaRouter;
+
+import java.util.Locale;
+
 public class MainActivity extends Activity {
 
     private static final int MIC_PERMISSION_REQUEST = 1001;
     private WebView webView;
+    private TextToSpeech tts;
+    private boolean ttsReady = false;
+    private MediaRouter mediaRouter;
+    private MediaRouteSelector mediaRouteSelector;
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -44,6 +56,21 @@ public class MainActivity extends Activity {
                 requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, MIC_PERMISSION_REQUEST);
             }
         }
+
+        // Initialize TTS
+        tts = new TextToSpeech(this, status -> {
+            ttsReady = (status == TextToSpeech.SUCCESS);
+            if (ttsReady) {
+                tts.setLanguage(new Locale("he", "IL"));
+            }
+        });
+
+        // Initialize MediaRouter for cast discovery
+        mediaRouter = MediaRouter.getInstance(this);
+        mediaRouteSelector = new MediaRouteSelector.Builder()
+            .addControlCategory(MediaControlIntent.CATEGORY_LIVE_AUDIO)
+            .addControlCategory(MediaControlIntent.CATEGORY_REMOTE_PLAYBACK)
+            .build();
 
         webView = findViewById(R.id.webview);
         setupWebView();
@@ -81,32 +108,72 @@ public class MainActivity extends Activity {
 
     /**
      * Bridge between JavaScript in the WebView and native Android.
-     * The web app calls window.AndroidBridge.openCastSettings() when
-     * the user taps the TV/cast button.
      */
     private class AndroidBridge {
         @JavascriptInterface
-        public void openCastSettings() {
-            try {
-                // Open Android's built-in Cast / screen mirror settings
-                Intent intent = new Intent(Settings.ACTION_CAST_SETTINGS);
-                startActivity(intent);
-            } catch (Exception e) {
-                // Fallback: open wireless display settings
-                try {
-                    Intent intent = new Intent("android.settings.WIFI_DISPLAY_SETTINGS");
-                    startActivity(intent);
-                } catch (Exception e2) {
-                    // Last resort: open general wireless settings
-                    Intent intent = new Intent(Settings.ACTION_WIRELESS_SETTINGS);
-                    startActivity(intent);
-                }
+        public boolean isAndroidApp() {
+            return true;
+        }
+
+        @JavascriptInterface
+        public void speak(String text, String lang) {
+            if (!ttsReady || text == null || text.isEmpty()) return;
+
+            tts.stop();
+
+            // Parse language code (e.g. "he-IL" -> Locale("he", "IL"))
+            Locale locale;
+            if (lang != null && lang.contains("-")) {
+                String[] parts = lang.split("-");
+                locale = new Locale(parts[0], parts[1]);
+            } else if (lang != null) {
+                locale = new Locale(lang);
+            } else {
+                locale = new Locale("he", "IL");
+            }
+            tts.setLanguage(locale);
+            tts.setSpeechRate(0.8f);
+
+            tts.speak(text, TextToSpeech.QUEUE_ADD, null, "utterance_" + System.currentTimeMillis());
+        }
+
+        @JavascriptInterface
+        public void stopSpeaking() {
+            if (ttsReady) {
+                tts.stop();
             }
         }
 
         @JavascriptInterface
-        public boolean isAndroidApp() {
-            return true;
+        public boolean isTtsReady() {
+            return ttsReady;
+        }
+
+        @JavascriptInterface
+        public void openCastSettings() {
+            runOnUiThread(() -> showCastDialog());
+        }
+    }
+
+    private void showCastDialog() {
+        try {
+            MediaRouteChooserDialog dialog = new MediaRouteChooserDialog(this);
+            dialog.setRouteSelector(mediaRouteSelector);
+            dialog.show();
+        } catch (Exception e) {
+            // Fallback: open Android's built-in Cast / screen mirror settings
+            try {
+                Intent intent = new Intent(Settings.ACTION_CAST_SETTINGS);
+                startActivity(intent);
+            } catch (Exception e2) {
+                try {
+                    Intent intent = new Intent("android.settings.WIFI_DISPLAY_SETTINGS");
+                    startActivity(intent);
+                } catch (Exception e3) {
+                    Intent intent = new Intent(Settings.ACTION_WIRELESS_SETTINGS);
+                    startActivity(intent);
+                }
+            }
         }
     }
 
@@ -133,6 +200,10 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        if (tts != null) {
+            tts.stop();
+            tts.shutdown();
+        }
         webView.destroy();
         super.onDestroy();
     }
