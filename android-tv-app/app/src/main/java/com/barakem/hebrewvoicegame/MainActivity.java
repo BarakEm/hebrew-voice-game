@@ -69,6 +69,7 @@ public class MainActivity extends Activity {
         mediaRouter = MediaRouter.getInstance(this);
         mediaRouteSelector = new MediaRouteSelector.Builder()
             .addControlCategory(MediaControlIntent.CATEGORY_LIVE_AUDIO)
+            .addControlCategory(MediaControlIntent.CATEGORY_LIVE_VIDEO)
             .addControlCategory(MediaControlIntent.CATEGORY_REMOTE_PLAYBACK)
             .build();
 
