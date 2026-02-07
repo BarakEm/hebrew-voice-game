@@ -30,11 +30,11 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Generate Gradle wrapper
+        run: gradle wrapper --gradle-version 8.2
+
       - name: Build debug APK
-        run: |
-          chmod +x gradlew 2>/dev/null || true
-          gradle wrapper --gradle-version 8.2
-          ./gradlew assembleDebug
+        run: ./gradlew assembleDebug
 
       - name: Build release APK
         run: ./gradlew assembleRelease
