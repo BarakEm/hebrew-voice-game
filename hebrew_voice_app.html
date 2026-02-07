@@ -5,12 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
-    <meta name="theme-color" content="#f0f8ff">
+    <meta name="theme-color" content="#6495ed">
     <title>Hebrew Voice Game</title>
-    
-    <!-- Google Cast SDK -->
-    <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
-    
+
+    <!-- PWA manifest -->
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+
     <style>
         * {
             margin: 0;
@@ -184,23 +186,28 @@
             50% { transform: scale(1.05); box-shadow: 0 0 15px 5px rgba(155, 89, 182, 0.3); }
         }
 
-        /* Cast button */
-        google-cast-launcher {
-            display: inline-block;
-            flex-shrink: 0;
-            --connected-color: #32cd32;
-            --disconnected-color: #6495ed;
+        /* Install / Fullscreen button */
+        .tv-btn {
+            background: transparent;
+            border: 3px solid #6495ed;
+            color: #6495ed;
+            border-radius: 50%;
             width: clamp(40px, 8vmin, 60px);
             height: clamp(40px, 8vmin, 60px);
+            font-size: clamp(18px, 4vmin, 28px);
             cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            transition: all 0.2s ease;
         }
-        
-        /* Cast status indicator */
-        .cast-status {
-            display: none;
-            font-size: 12px;
-            color: #999;
+        .tv-btn:active {
+            transform: scale(0.95);
+            background: #6495ed;
+            color: white;
         }
+        .tv-btn.hidden { display: none; }
 
         /* Display area */
         .display-area {
@@ -322,7 +329,10 @@
 
     <!-- Mode Selection Screen -->
     <div id="modeScreen" class="mode-screen">
-        <div class="mode-title" id="modeTitle">בחר משחק</div>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div class="mode-title" id="modeTitle" style="flex:1;">בחר משחק</div>
+            <button class="tv-btn" onclick="handleInstallOrFullscreen()" title="Cast to TV">&#128250;</button>
+        </div>
         <div class="mode-buttons">
             <button class="mode-button free-speech" onclick="startMode('free-speech')">
                 <span class="icon">🎤</span>
@@ -343,9 +353,8 @@
     <div id="gameScreen" class="game-screen">
         <div class="top-bar">
             <button class="back-button" onclick="goBack()">← חזרה</button>
-            <button class="continuous-btn" id="continuousBtn" onclick="toggleContinuous()">∞</button>
-            <google-cast-launcher id="castButton"></google-cast-launcher>
-            <span id="castStatus" class="cast-status"></span>
+            <button class="continuous-btn" id="continuousBtn" onclick="toggleContinuous()">&#8734;</button>
+            <button class="tv-btn" id="installBtn" onclick="handleInstallOrFullscreen()" title="Cast to TV">&#128250;</button>
             <div class="lang-toggle">
                 <button class="lang-btn active" id="btnHebrew" onclick="setLanguage('hebrew')">עברית</button>
                 <button class="lang-btn" id="btnEnglish" onclick="setLanguage('english')">English</button>
@@ -364,152 +373,54 @@
 
     <script>
         // ===========================================
-        // GOOGLE CAST INITIALIZATION
+        // PWA + INSTALL / FULLSCREEN
         // ===========================================
-        
-        // Constants
-        const CAST_STATUS_AUTO_HIDE_DELAY = 3000; // milliseconds
-        const CAST_API_LOAD_TIMEOUT = 5000; // milliseconds
-        
-        // Track if Cast API callback was called
-        let castApiCallbackReceived = false;
-        
-        window['__onGCastApiAvailable'] = function(isAvailable) {
-            castApiCallbackReceived = true;
-            console.log('✅ Google Cast API callback received');
-            console.log('Google Cast API availability:', isAvailable);
-            
-            const statusEl = document.getElementById('castStatus');
-            
-            if (isAvailable) {
-                initializeCastApi();
-                if (statusEl) {
-                    statusEl.textContent = '✓ Cast ready';
-                    statusEl.style.display = 'inline';
-                    statusEl.style.color = '#32cd32';
-                    statusEl.title = 'Cast is ready. Click the cast button to connect.';
-                    // Hide after delay
-                    setTimeout(() => statusEl.style.display = 'none', CAST_STATUS_AUTO_HIDE_DELAY);
-                }
-            } else {
-                console.warn('⚠️ Google Cast API not available');
-                console.warn('Please use Chrome browser for Cast support');
-                if (statusEl) {
-                    statusEl.textContent = '⚠️ Use Chrome';
-                    statusEl.style.display = 'inline';
-                    statusEl.style.color = '#ffa500';
-                    statusEl.title = 'Cast requires Chrome browser';
-                }
-            }
-        };
-        
-        // Check if callback was called after a timeout
-        setTimeout(function() {
-            if (!castApiCallbackReceived) {
-                console.error('❌ Google Cast API callback was NEVER called');
-                console.error('This usually means:');
-                console.error('  1. Cast SDK script failed to load');
-                console.error('  2. Network/CORS issue blocking the script');
-                console.error('  3. Script loaded but callback timing issue');
-                console.log('Cast SDK script URL: https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1');
-                
-                // Show user-friendly status
-                const statusEl = document.getElementById('castStatus');
-                if (statusEl) {
-                    statusEl.textContent = '⚠️ Cast unavailable';
-                    statusEl.style.display = 'inline';
-                    statusEl.title = 'Cast API did not load. Use Chrome browser on same WiFi as Chromecast.';
-                }
-            }
-        }, CAST_API_LOAD_TIMEOUT);
 
-        function initializeCastApi() {
-            try {
-                const castContext = cast.framework.CastContext.getInstance();
-                
-                // Configure Cast options
-                castContext.setOptions({
-                    receiverApplicationId: chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
-                    autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
+        // Register service worker for PWA
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js').then(reg => {
+                console.log('Service worker registered');
+            }).catch(err => {
+                console.log('Service worker registration skipped:', err.message);
+            });
+        }
+
+        // Capture the install prompt
+        let deferredInstallPrompt = null;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredInstallPrompt = e;
+            console.log('Install prompt captured');
+        });
+
+        // Detect if running inside the Android APK
+        const isAndroidApp = typeof AndroidBridge !== 'undefined' && AndroidBridge.isAndroidApp && AndroidBridge.isAndroidApp();
+
+        function handleInstallOrFullscreen() {
+            // Inside APK: open Android's screen cast / mirror settings
+            if (isAndroidApp) {
+                AndroidBridge.openCastSettings();
+                return;
+            }
+
+            // Browser: try PWA install
+            if (deferredInstallPrompt) {
+                deferredInstallPrompt.prompt();
+                deferredInstallPrompt.userChoice.then(choice => {
+                    console.log('Install choice:', choice.outcome);
+                    deferredInstallPrompt = null;
                 });
-                
-                // Listen for cast state changes
-                castContext.addEventListener(
-                    cast.framework.CastContextEventType.CAST_STATE_CHANGED,
-                    onCastStateChanged
-                );
-                
-                // Check initial state
-                const castState = castContext.getCastState();
-                console.log('Google Cast initialized. Initial state:', castState);
-                handleCastState(castState);
-            } catch (error) {
-                console.error('❌ Failed to initialize Cast API:', error);
-                console.error('Error details:', error.message);
+                return;
             }
-        }
 
-        function onCastStateChanged(event) {
-            console.log('Cast state changed:', event.castState);
-            handleCastState(event.castState);
-        }
-
-        function handleCastState(castState) {
-            const statusEl = document.getElementById('castStatus');
-            
-            switch (castState) {
-                case cast.framework.CastState.CONNECTED:
-                    console.log('✅ Connected to TV!');
-                    optimizeForTV();
-                    if (statusEl) {
-                        statusEl.textContent = '📺 Connected';
-                        statusEl.style.display = 'inline';
-                        statusEl.style.color = '#32cd32';
-                        statusEl.title = 'Connected to TV';
-                    }
-                    break;
-                case cast.framework.CastState.CONNECTING:
-                    console.log('🔄 Connecting to TV...');
-                    if (statusEl) {
-                        statusEl.textContent = '🔄 Connecting...';
-                        statusEl.style.display = 'inline';
-                        statusEl.style.color = '#ffa500';
-                        statusEl.title = 'Connecting to TV';
-                    }
-                    break;
-                case cast.framework.CastState.NOT_CONNECTED:
-                    console.log('📺 Disconnected from TV');
-                    resetTVOptimization();
-                    if (statusEl) {
-                        // Hide status when not connected (cast button is enough indicator)
-                        statusEl.style.display = 'none';
-                    }
-                    break;
-                case cast.framework.CastState.NO_DEVICES_AVAILABLE:
-                    console.log('❌ No Chromecast devices found on network');
-                    console.log('💡 Make sure your Chromecast/Google TV is:');
-                    console.log('   - Powered on and connected to the same WiFi network');
-                    console.log('   - Visible in Google Home app');
-                    if (statusEl) {
-                        statusEl.textContent = '⚠️ No devices';
-                        statusEl.style.display = 'inline';
-                        statusEl.style.color = '#ff5050';
-                        statusEl.title = 'No Chromecast found. Check WiFi and device.';
-                    }
-                    break;
+            // Fallback: toggle fullscreen
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => {
+                    console.log('Fullscreen not available:', err.message);
+                });
+            } else {
+                document.exitFullscreen();
             }
-        }
-
-        function optimizeForTV() {
-            // Make content larger for TV viewing
-            document.documentElement.style.fontSize = '120%';
-            console.log('Optimized for TV display');
-        }
-
-        function resetTVOptimization() {
-            // Reset to normal size
-            document.documentElement.style.fontSize = '100%';
-            console.log('Reset to normal display');
         }
 
         // ===========================================

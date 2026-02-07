@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="AppTheme" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:colorPrimary">#6495ED</item>
+        <item name="android:colorPrimaryDark">#4169E1</item>
+        <item name="android:colorAccent">#32CD32</item>
+        <item name="android:windowBackground">@android:color/white</item>
+    </style>
+</resources>
