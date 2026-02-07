@@ -208,6 +208,61 @@
             color: white;
         }
         .tv-btn.hidden { display: none; }
+        .tv-btn.casting {
+            border-color: #32cd32;
+            color: #32cd32;
+            animation: continuousPulse 1.5s ease-in-out infinite;
+        }
+
+        /* Cast modal */
+        .cast-modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.6);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 6vmin;
+        }
+        .cast-modal-overlay.active { display: flex; }
+        .cast-modal {
+            background: white;
+            border-radius: 20px;
+            padding: 5vmin;
+            max-width: 400px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        }
+        .cast-modal h2 {
+            color: #6495ed;
+            font-size: clamp(18px, 5vmin, 28px);
+            margin-bottom: 3vmin;
+        }
+        .cast-modal .steps {
+            text-align: left;
+            direction: ltr;
+            font-size: clamp(14px, 3.5vmin, 20px);
+            color: #333;
+            line-height: 1.8;
+            margin: 3vmin 0;
+        }
+        .cast-modal .steps li {
+            margin: 1.5vmin 0;
+        }
+        .cast-modal .close-btn {
+            background: #6495ed;
+            color: white;
+            border: none;
+            border-radius: 15px;
+            padding: 2.5vmin 6vmin;
+            font-size: clamp(16px, 4vmin, 22px);
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 2vmin;
+        }
+        .cast-modal .close-btn:active { transform: scale(0.95); }
 
         /* Display area */
         .display-area {
@@ -327,6 +382,23 @@
 <body>
     <div id="errorBanner" class="error-banner"></div>
 
+    <!-- Cast Instructions Modal -->
+    <div id="castModal" class="cast-modal-overlay" onclick="closeCastModal(event)">
+        <div class="cast-modal" onclick="event.stopPropagation()">
+            <h2>&#128250; Cast to TV</h2>
+            <ol class="steps">
+                <li>Open Chrome menu (<b>&#8942;</b> top right)</li>
+                <li>Tap <b>"Cast..."</b></li>
+                <li>Select your <b>Mibox / TV</b></li>
+                <li>Choose <b>"Cast tab"</b> if prompted</li>
+            </ol>
+            <p style="color:#888; font-size:clamp(12px,3vmin,16px); margin-bottom:2vmin;">
+                The game displays on TV while you control from your phone.
+            </p>
+            <button class="close-btn" onclick="closeCastModal()">OK</button>
+        </div>
+    </div>
+
     <!-- Mode Selection Screen -->
     <div id="modeScreen" class="mode-screen">
         <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -385,41 +457,26 @@
             });
         }
 
-        // Capture the install prompt
-        let deferredInstallPrompt = null;
-        window.addEventListener('beforeinstallprompt', (e) => {
-            e.preventDefault();
-            deferredInstallPrompt = e;
-            console.log('Install prompt captured');
-        });
-
         // Detect if running inside the Android APK
         const isAndroidApp = typeof AndroidBridge !== 'undefined' && AndroidBridge.isAndroidApp && AndroidBridge.isAndroidApp();
 
         function handleInstallOrFullscreen() {
-            // Inside APK: open Android's screen cast / mirror settings
+            // Inside APK: open Android's system cast / screen-mirror settings.
+            // The OS handles the full Chromecast connection lifecycle, so
+            // screen mirroring to Mibox works reliably.
             if (isAndroidApp) {
                 AndroidBridge.openCastSettings();
                 return;
             }
 
-            // Browser: try PWA install
-            if (deferredInstallPrompt) {
-                deferredInstallPrompt.prompt();
-                deferredInstallPrompt.userChoice.then(choice => {
-                    console.log('Install choice:', choice.outcome);
-                    deferredInstallPrompt = null;
-                });
-                return;
-            }
+            // Browser: show cast instructions modal
+            document.getElementById('castModal').classList.add('active');
+        }
 
-            // Fallback: toggle fullscreen
-            if (!document.fullscreenElement) {
-                document.documentElement.requestFullscreen().catch(err => {
-                    console.log('Fullscreen not available:', err.message);
-                });
-            } else {
-                document.exitFullscreen();
+        function closeCastModal(event) {
+            // Close when clicking overlay background or the OK button
+            if (!event || event.target === event.currentTarget) {
+                document.getElementById('castModal').classList.remove('active');
             }
         }
 
