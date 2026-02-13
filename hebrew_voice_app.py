@@ -14,6 +14,8 @@ import tempfile
 import re
 import logging
 import io
+import json
+import random
 from enum import Enum
 from dataclasses import dataclass
 from typing import Optional, Callable
@@ -228,6 +230,19 @@ class HebrewVoiceApp:
         self.animation_frame = 0
         self.clock = pygame.time.Clock()
 
+        # Load words data
+        self.words_data = self._load_words_data()
+        
+        # Spelling Bee game state
+        self.spelling_game = {
+            'difficulty': None,
+            'current_word': None,
+            'target_word': None,
+            'user_spelling': [],
+            'word_list': [],
+            'score': 0
+        }
+
     def _find_hebrew_font(self) -> str:
         """Find a font that supports Hebrew."""
         font_paths = [
@@ -240,6 +255,20 @@ class HebrewVoiceApp:
             if os.path.exists(path):
                 return path
         return None
+
+    def _load_words_data(self) -> dict:
+        """Load words from words.json file."""
+        try:
+            words_path = os.path.join(os.path.dirname(__file__), 'words.json')
+            with open(words_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                log.info("Words data loaded successfully")
+                return data
+        except Exception as e:
+            log.error(f"Failed to load words.json: {e}")
+            return {"spelling": {"hebrew": {"easy": [], "medium": [], "hard": []}, 
+                                "english": {"easy": [], "medium": [], "hard": []}},
+                   "translations": []}
 
     def _setup_ui_rects(self):
         """Set up UI element rectangles."""
@@ -314,6 +343,32 @@ class HebrewVoiceApp:
             margin, SCREEN_HEIGHT - button_height - margin,
             SCREEN_WIDTH - margin * 2, button_height
         )
+        
+        # Difficulty selector buttons for spelling mode
+        difficulty_btn_width = int(SCREEN_WIDTH * 0.28)
+        difficulty_btn_height = int(SCREEN_HEIGHT * 0.12)
+        difficulty_gap = int(SCREEN_WIDTH * 0.04)
+        difficulty_start_x = (SCREEN_WIDTH - (difficulty_btn_width * 3 + difficulty_gap * 2)) // 2
+        difficulty_y = self.display_rect.centery - difficulty_btn_height // 2
+        
+        self.difficulty_buttons = {
+            'easy': pygame.Rect(difficulty_start_x, difficulty_y, difficulty_btn_width, difficulty_btn_height),
+            'medium': pygame.Rect(difficulty_start_x + difficulty_btn_width + difficulty_gap, difficulty_y, 
+                                 difficulty_btn_width, difficulty_btn_height),
+            'hard': pygame.Rect(difficulty_start_x + (difficulty_btn_width + difficulty_gap) * 2, difficulty_y,
+                               difficulty_btn_width, difficulty_btn_height)
+        }
+        
+        # Game control buttons (Repeat, Next) for spelling mode
+        game_btn_width = int(SCREEN_WIDTH * 0.35)
+        game_btn_height = int(SCREEN_HEIGHT * 0.08)
+        game_btn_gap = int(SCREEN_WIDTH * 0.05)
+        game_btn_start_x = (SCREEN_WIDTH - (game_btn_width * 2 + game_btn_gap)) // 2
+        game_btn_y = self.display_rect.bottom - game_btn_height - 10
+        
+        self.repeat_btn_rect = pygame.Rect(game_btn_start_x, game_btn_y, game_btn_width, game_btn_height)
+        self.next_btn_rect = pygame.Rect(game_btn_start_x + game_btn_width + game_btn_gap, game_btn_y,
+                                         game_btn_width, game_btn_height)
 
     def get_text(self, key: str) -> str:
         """Get UI text for current language."""
@@ -532,6 +587,173 @@ class HebrewVoiceApp:
         threading.Thread(target=speak, daemon=True).start()
 
     # ===========================================
+    # SPELLING BEE GAME
+    # ===========================================
+    def select_difficulty(self, difficulty: str):
+        """Select difficulty and start spelling game."""
+        if not self.words_data:
+            log.error("Words data not loaded")
+            return
+        
+        lang_key = self.current_lang
+        word_list = self.words_data.get('spelling', {}).get(lang_key, {}).get(difficulty, [])
+        
+        if not word_list:
+            log.error(f"No words available for {difficulty}")
+            return
+        
+        self.spelling_game['difficulty'] = difficulty
+        self.spelling_game['word_list'] = word_list
+        log.info(f"Selected difficulty: {difficulty}, {len(word_list)} words available")
+        
+        # Start first word
+        self.next_word()
+    
+    def next_word(self):
+        """Pick a random word and speak it."""
+        if not self.spelling_game['word_list']:
+            log.error("No words in word list")
+            return
+        
+        # Pick random word
+        word = random.choice(self.spelling_game['word_list'])
+        self.spelling_game['target_word'] = word
+        self.spelling_game['current_word'] = word
+        self.spelling_game['user_spelling'] = []
+        
+        log.info(f"Next word: {word}")
+        
+        # Speak the word
+        self.recognized_text = "👂 " + (self.get_text('LISTENING') if self.current_lang == 'hebrew' else 'Listen...')
+        self.state = AppState.SHOWING
+        
+        def after_speak():
+            # After speaking, show instruction
+            if self.current_lang == 'hebrew':
+                self.recognized_text = 'עכשיו אתה! אות אחר אות'
+            else:
+                self.recognized_text = 'Your turn! Spell it letter by letter'
+            self.state = AppState.READY
+        
+        # Speak in a thread and then update
+        def speak_word():
+            try:
+                if HAS_GTTS:
+                    lang_code = 'he' if self.current_lang == 'hebrew' else 'en'
+                    tts = gTTS(text=word, lang=lang_code, slow=True)
+                    tts.save(self.temp_tts)
+                    pygame.mixer.music.load(self.temp_tts)
+                    pygame.mixer.music.play()
+                    while pygame.mixer.music.get_busy():
+                        pygame.time.wait(50)
+                after_speak()
+            except Exception as e:
+                log.error(f"TTS error in next_word: {e}")
+                after_speak()
+        
+        threading.Thread(target=speak_word, daemon=True).start()
+    
+    def repeat_word(self):
+        """Repeat the current word."""
+        if not self.spelling_game['target_word']:
+            return
+        
+        word = self.spelling_game['target_word']
+        self.recognized_text = "👂 " + (self.get_text('LISTENING') if self.current_lang == 'hebrew' else 'Listen...')
+        
+        def after_speak():
+            if self.current_lang == 'hebrew':
+                self.recognized_text = 'עכשיו אתה! אות אחר אות'
+            else:
+                self.recognized_text = 'Your turn! Spell it letter by letter'
+        
+        def speak_word():
+            try:
+                if HAS_GTTS:
+                    lang_code = 'he' if self.current_lang == 'hebrew' else 'en'
+                    tts = gTTS(text=word, lang=lang_code, slow=True)
+                    tts.save(self.temp_tts)
+                    pygame.mixer.music.load(self.temp_tts)
+                    pygame.mixer.music.play()
+                    while pygame.mixer.music.get_busy():
+                        pygame.time.wait(50)
+                after_speak()
+            except Exception as e:
+                log.error(f"TTS error in repeat_word: {e}")
+                after_speak()
+        
+        threading.Thread(target=speak_word, daemon=True).start()
+    
+    def check_spelling(self, spoken_text: str):
+        """Check if spoken letter matches target word."""
+        if not self.spelling_game['target_word']:
+            return
+        
+        normalized = spoken_text.strip().lower()
+        target_word = self.spelling_game['target_word']
+        target_letters = list(target_word.lower())
+        matched_index = -1
+        
+        # For Hebrew, check against letter names
+        if self.current_lang == 'hebrew':
+            for letter, name in HEBREW_LETTER_NAMES.items():
+                if normalized in name.lower() or normalized == letter:
+                    # Find next unfilled position for this letter
+                    for i in range(len(target_letters)):
+                        if target_letters[i] == letter.lower() and i >= len(self.spelling_game['user_spelling']):
+                            matched_index = i
+                            self.spelling_game['user_spelling'].append({'char': letter, 'correct': True})
+                            break
+                    break
+        else:
+            # For English, check if it's a single letter
+            if len(normalized) == 1 and normalized.isalpha():
+                for i in range(len(target_letters)):
+                    if target_letters[i] == normalized and i >= len(self.spelling_game['user_spelling']):
+                        matched_index = i
+                        self.spelling_game['user_spelling'].append({'char': normalized, 'correct': True})
+                        break
+        
+        if matched_index >= 0:
+            # Correct letter!
+            # Check if word is complete
+            if len(self.spelling_game['user_spelling']) == len(target_letters):
+                # Word completed!
+                self.recognized_text = '🎉 ' + ('מצוין! מילה נכונה!' if self.current_lang == 'hebrew' else 'Excellent! Correct!')
+                self.last_recognized_text = 'מצוין' if self.current_lang == 'hebrew' else 'Excellent'
+                self.state = AppState.SHOWING
+                
+                # Speak success and auto-next
+                def success_flow():
+                    try:
+                        if HAS_GTTS:
+                            lang_code = 'he' if self.current_lang == 'hebrew' else 'en'
+                            text = 'מצוין' if self.current_lang == 'hebrew' else 'Excellent'
+                            tts = gTTS(text=text, lang=lang_code, slow=True)
+                            tts.save(self.temp_tts)
+                            pygame.mixer.music.load(self.temp_tts)
+                            pygame.mixer.music.play()
+                            while pygame.mixer.music.get_busy():
+                                pygame.time.wait(50)
+                        pygame.time.wait(2000)
+                        self.next_word()
+                    except Exception as e:
+                        log.error(f"Success flow error: {e}")
+                        pygame.time.wait(2000)
+                        self.next_word()
+                
+                threading.Thread(target=success_flow, daemon=True).start()
+            else:
+                # Continue spelling
+                self.recognized_text = ('נכון! ✓ המשך...' if self.current_lang == 'hebrew' 
+                                       else 'Correct! ✓ Continue...')
+                self.state = AppState.READY
+        else:
+            # Incorrect
+            self.recognized_text = '❌ ' + ('נסה שוב' if self.current_lang == 'hebrew' else 'Try again')
+            self.state = AppState.READY
+
+    # ===========================================
     # RECORDING
     # ===========================================
     def _record_audio(self):
@@ -626,14 +848,15 @@ class HebrewVoiceApp:
                 self._handle_translation(self.last_recognized_text)
                 return
 
+            # Handle spelling mode
+            if self.current_mode == GameMode.SPELLING and self.last_recognized_text:
+                self.check_spelling(self.last_recognized_text)
+                return
+
             self.state = AppState.SHOWING
 
-            # In spelling mode, automatically speak and spell
-            if self.current_mode == GameMode.SPELLING and self.last_recognized_text:
-                pygame.time.wait(300)
-                self.speak_and_spell(restart_after=self.continuous_mode)
-            elif self.continuous_mode and self.last_recognized_text:
-                # In free speech continuous mode, speak the result then restart
+            # In continuous mode for free speech, speak the result then restart
+            if self.current_mode == GameMode.FREE_SPEECH and self.continuous_mode and self.last_recognized_text:
                 pygame.time.wait(300)
                 self.speak_text(restart_after=True)
             elif self.continuous_mode and not self.last_recognized_text:
@@ -829,41 +1052,133 @@ class HebrewVoiceApp:
             speaker_rect = speaker_text.get_rect(center=self.speaker_btn_rect.center)
             self.screen.blit(speaker_text, speaker_rect)
 
-        # Main button
-        if self.state == AppState.RECORDING:
-            color = BRIGHT_RED
-            text = self.get_text('RECORDING')
-            pulse = True
-        elif self.state == AppState.PROCESSING:
-            color = BRIGHT_YELLOW
-            text = self.get_text('PROCESSING')
-            pulse = True
-        else:
-            color = BRIGHT_GREEN
-            text = self.get_text('TAP_TO_SPEAK')
-            pulse = False
+        # Spelling mode: Show difficulty selector or game controls
+        if self.current_mode == GameMode.SPELLING:
+            if self.spelling_game['difficulty'] is None:
+                # Show difficulty selector
+                difficulty_configs = [
+                    ('easy', BRIGHT_GREEN, '🟢 ' + ('קל' if self.current_lang == 'hebrew' else 'Easy')),
+                    ('medium', BRIGHT_YELLOW, '🟡 ' + ('בינוני' if self.current_lang == 'hebrew' else 'Medium')),
+                    ('hard', BRIGHT_RED, '🔴 ' + ('קשה' if self.current_lang == 'hebrew' else 'Hard'))
+                ]
+                
+                for difficulty, color, label in difficulty_configs:
+                    rect = self.difficulty_buttons[difficulty]
+                    # Shadow
+                    shadow = rect.copy()
+                    shadow.move_ip(4, 4)
+                    pygame.draw.rect(self.screen, (100, 100, 100), shadow, border_radius=20)
+                    # Button
+                    pygame.draw.rect(self.screen, color, rect, border_radius=20)
+                    pygame.draw.rect(self.screen, WHITE, rect, width=3, border_radius=20)
+                    # Text
+                    text_surface = self._render_text(label, self.small_font, WHITE)
+                    text_rect = text_surface.get_rect(center=rect.center)
+                    self.screen.blit(text_surface, text_rect)
+                
+                # Show prompt in display area
+                prompt = 'בחר רמת קושי' if self.current_lang == 'hebrew' else 'Select Difficulty'
+                font = pygame.font.Font(self.font_path, int(SCREEN_HEIGHT * 0.08))
+                prompt_surface = self._render_text(prompt, font, BRIGHT_BLUE)
+                prompt_rect = prompt_surface.get_rect(center=(self.display_rect.centerx, 
+                                                              self.display_rect.top + int(SCREEN_HEIGHT * 0.1)))
+                self.screen.blit(prompt_surface, prompt_rect)
+            else:
+                # Show spelling letter boxes
+                if self.spelling_game['target_word']:
+                    letters = list(self.spelling_game['target_word'])
+                    user_spelling = self.spelling_game['user_spelling']
+                    
+                    # Calculate letter box layout
+                    box_size = min(int(SCREEN_WIDTH * 0.12), int(SCREEN_HEIGHT * 0.08))
+                    gap = int(box_size * 0.2)
+                    total_width = len(letters) * box_size + (len(letters) - 1) * gap
+                    start_x = self.display_rect.centerx - total_width // 2
+                    box_y = self.display_rect.centery + int(SCREEN_HEIGHT * 0.05)
+                    
+                    for i, letter in enumerate(letters):
+                        x = start_x + i * (box_size + gap)
+                        box_rect = pygame.Rect(x, box_y, box_size, box_size)
+                        
+                        # Determine box color
+                        if i < len(user_spelling):
+                            # Letter has been spoken
+                            if user_spelling[i]['correct']:
+                                box_color = BRIGHT_GREEN
+                            else:
+                                box_color = BRIGHT_RED
+                            display_char = user_spelling[i]['char']
+                        else:
+                            # Not yet filled
+                            box_color = GRAY
+                            display_char = '_'
+                        
+                        # Draw box
+                        pygame.draw.rect(self.screen, box_color, box_rect, border_radius=10)
+                        pygame.draw.rect(self.screen, WHITE, box_rect, width=3, border_radius=10)
+                        
+                        # Draw letter
+                        letter_font = pygame.font.Font(self.font_path, int(box_size * 0.6))
+                        letter_surface = self._render_text(display_char, letter_font, WHITE)
+                        letter_rect = letter_surface.get_rect(center=box_rect.center)
+                        self.screen.blit(letter_surface, letter_rect)
+                
+                # Show game control buttons (Repeat, Next)
+                # Repeat button
+                pygame.draw.rect(self.screen, BRIGHT_BLUE, self.repeat_btn_rect, border_radius=15)
+                pygame.draw.rect(self.screen, WHITE, self.repeat_btn_rect, width=3, border_radius=15)
+                repeat_text = '🔁 ' + ('חזור' if self.current_lang == 'hebrew' else 'Repeat')
+                repeat_surface = self._render_text(repeat_text, self.small_font, WHITE)
+                repeat_rect = repeat_surface.get_rect(center=self.repeat_btn_rect.center)
+                self.screen.blit(repeat_surface, repeat_rect)
+                
+                # Next button
+                pygame.draw.rect(self.screen, TEAL, self.next_btn_rect, border_radius=15)
+                pygame.draw.rect(self.screen, WHITE, self.next_btn_rect, width=3, border_radius=15)
+                next_text = '⏭️ ' + ('הבא' if self.current_lang == 'hebrew' else 'Next')
+                next_surface = self._render_text(next_text, self.small_font, WHITE)
+                next_rect = next_surface.get_rect(center=self.next_btn_rect.center)
+                self.screen.blit(next_surface, next_rect)
 
-        button_rect = self.main_button_rect.copy()
-        if pulse:
-            self.animation_frame = (self.animation_frame + 1) % 60
-            scale = 1.0 + 0.03 * abs(30 - self.animation_frame) / 30
-            w_diff = int(button_rect.width * (scale - 1) / 2)
-            h_diff = int(button_rect.height * (scale - 1) / 2)
-            button_rect.inflate_ip(w_diff, h_diff)
+        # Main button (hide in spelling mode when showing difficulty selector)
+        show_main_button = not (self.current_mode == GameMode.SPELLING and 
+                                self.spelling_game['difficulty'] is None)
+        
+        if show_main_button:
+            if self.state == AppState.RECORDING:
+                color = BRIGHT_RED
+                text = self.get_text('RECORDING')
+                pulse = True
+            elif self.state == AppState.PROCESSING:
+                color = BRIGHT_YELLOW
+                text = self.get_text('PROCESSING')
+                pulse = True
+            else:
+                color = BRIGHT_GREEN
+                text = self.get_text('TAP_TO_SPEAK')
+                pulse = False
 
-        # Shadow
-        shadow_rect = button_rect.copy()
-        shadow_rect.move_ip(8, 8)
-        pygame.draw.rect(self.screen, (100, 100, 100), shadow_rect, border_radius=40)
+            button_rect = self.main_button_rect.copy()
+            if pulse:
+                self.animation_frame = (self.animation_frame + 1) % 60
+                scale = 1.0 + 0.03 * abs(30 - self.animation_frame) / 30
+                w_diff = int(button_rect.width * (scale - 1) / 2)
+                h_diff = int(button_rect.height * (scale - 1) / 2)
+                button_rect.inflate_ip(w_diff, h_diff)
 
-        # Button
-        pygame.draw.rect(self.screen, color, button_rect, border_radius=40)
-        pygame.draw.rect(self.screen, WHITE, button_rect, width=6, border_radius=40)
+            # Shadow
+            shadow_rect = button_rect.copy()
+            shadow_rect.move_ip(8, 8)
+            pygame.draw.rect(self.screen, (100, 100, 100), shadow_rect, border_radius=40)
 
-        # Button text
-        btn_text_surface = self._render_text(text, self.medium_font, WHITE)
-        btn_text_rect = btn_text_surface.get_rect(center=button_rect.center)
-        self.screen.blit(btn_text_surface, btn_text_rect)
+            # Button
+            pygame.draw.rect(self.screen, color, button_rect, border_radius=40)
+            pygame.draw.rect(self.screen, WHITE, button_rect, width=6, border_radius=40)
+
+            # Button text
+            btn_text_surface = self._render_text(text, self.medium_font, WHITE)
+            btn_text_rect = btn_text_surface.get_rect(center=button_rect.center)
+            self.screen.blit(btn_text_surface, btn_text_rect)
 
     # ===========================================
     # EVENT HANDLING
@@ -892,6 +1207,15 @@ class HebrewVoiceApp:
                 self.recognized_text = ""
                 self.last_recognized_text = ""
                 self.translation_original = ""
+                # Reset spelling game state
+                self.spelling_game = {
+                    'difficulty': None,
+                    'current_word': None,
+                    'target_word': None,
+                    'user_spelling': [],
+                    'word_list': [],
+                    'score': 0
+                }
                 return
 
             # Continuous mode toggle
@@ -913,6 +1237,22 @@ class HebrewVoiceApp:
                 self.speaker_btn_rect.collidepoint(pos)):
                 self.speak_text()
                 return
+
+            # Spelling mode: Difficulty selector
+            if self.current_mode == GameMode.SPELLING and self.spelling_game['difficulty'] is None:
+                for difficulty, rect in self.difficulty_buttons.items():
+                    if rect.collidepoint(pos):
+                        self.select_difficulty(difficulty)
+                        return
+            
+            # Spelling mode: Game control buttons
+            if self.current_mode == GameMode.SPELLING and self.spelling_game['difficulty'] is not None:
+                if self.repeat_btn_rect.collidepoint(pos):
+                    self.repeat_word()
+                    return
+                if self.next_btn_rect.collidepoint(pos):
+                    self.next_word()
+                    return
 
             # Main button
             if self.main_button_rect.collidepoint(pos):
