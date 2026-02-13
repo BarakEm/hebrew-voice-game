@@ -707,6 +707,12 @@ class HebrewVoiceApp:
         target_letters = list(target_word.lower())
         matched_index = -1
         
+        # Track filled positions
+        filled_positions = set()
+        for entry in self.spelling_game['user_spelling']:
+            if 'position' in entry:
+                filled_positions.add(entry['position'])
+        
         # For Hebrew, check against letter names
         if self.current_lang == 'hebrew':
             for letter, name in HEBREW_LETTER_NAMES.items():
@@ -714,22 +720,29 @@ class HebrewVoiceApp:
                 name_stripped = strip_niqqud(name).lower()
                 # Check for exact match (with or without niqqud) or if the letter itself is spoken
                 if normalized == name_stripped or normalized == name.lower() or normalized == letter:
-                    # Find next unfilled position for this letter
-                    filled_count = len(self.spelling_game['user_spelling'])
-                    for i in range(filled_count, len(target_letters)):
-                        if target_letters[i] == letter.lower():
+                    # Find first unfilled position for this letter
+                    for i in range(len(target_letters)):
+                        if i not in filled_positions and target_letters[i] == letter.lower():
                             matched_index = i
-                            self.spelling_game['user_spelling'].append({'char': letter, 'correct': True})
+                            self.spelling_game['user_spelling'].append({
+                                'char': letter, 
+                                'correct': True,
+                                'position': i
+                            })
                             break
                     break
         else:
             # For English, check if it's a single letter
             if len(normalized) == 1 and normalized.isalpha():
-                filled_count = len(self.spelling_game['user_spelling'])
-                for i in range(filled_count, len(target_letters)):
-                    if target_letters[i] == normalized:
+                # Find first unfilled position for this letter
+                for i in range(len(target_letters)):
+                    if i not in filled_positions and target_letters[i] == normalized:
                         matched_index = i
-                        self.spelling_game['user_spelling'].append({'char': normalized, 'correct': True})
+                        self.spelling_game['user_spelling'].append({
+                            'char': normalized,
+                            'correct': True,
+                            'position': i
+                        })
                         break
         
         if matched_index >= 0:

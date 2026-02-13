@@ -1083,6 +1083,13 @@
             const normalized = spokenText.trim().toLowerCase();
             const targetLetters = [...spellingGame.targetWord.toLowerCase()];
             
+            // Track which positions are already filled
+            const filledPositions = new Set(
+                Object.keys(spellingGame.userSpelling)
+                    .filter(k => spellingGame.userSpelling[k])
+                    .map(k => parseInt(k))
+            );
+            
             // Check if user spoke a single letter
             let matchedLetterIndex = -1;
             
@@ -1090,9 +1097,9 @@
             if (currentLang === 'hebrew') {
                 for (const [letter, name] of Object.entries(HEBREW_LETTER_NAMES)) {
                     if (normalized.includes(name.toLowerCase()) || normalized.includes(letter)) {
-                        // Find next unfilled position for this letter
+                        // Find first unfilled position for this letter
                         for (let i = 0; i < targetLetters.length; i++) {
-                            if (targetLetters[i] === letter.toLowerCase() && !spellingGame.userSpelling[i]) {
+                            if (targetLetters[i] === letter.toLowerCase() && !filledPositions.has(i)) {
                                 matchedLetterIndex = i;
                                 spellingGame.userSpelling[i] = { char: letter, correct: true };
                                 break;
@@ -1105,7 +1112,7 @@
                 // For English, check if it's a single letter
                 if (normalized.length === 1 && /[a-z]/.test(normalized)) {
                     for (let i = 0; i < targetLetters.length; i++) {
-                        if (targetLetters[i] === normalized && !spellingGame.userSpelling[i]) {
+                        if (targetLetters[i] === normalized && !filledPositions.has(i)) {
                             matchedLetterIndex = i;
                             spellingGame.userSpelling[i] = { char: normalized, correct: true };
                             break;
@@ -1118,9 +1125,12 @@
                 // Correct letter!
                 updateSpellingDisplay();
                 
-                // Check if word is complete
-                if (spellingGame.userSpelling.length === targetLetters.length && 
-                    spellingGame.userSpelling.every(l => l && l.correct)) {
+                // Check if word is complete (count filled positions)
+                const filledCount = Object.keys(spellingGame.userSpelling)
+                    .filter(k => spellingGame.userSpelling[k] && spellingGame.userSpelling[k].correct)
+                    .length;
+                
+                if (filledCount === targetLetters.length) {
                     // Word completed successfully!
                     displayText.textContent = currentLang === 'hebrew' ? '🎉 מצוין! מילה נכונה!' : '🎉 Excellent! Correct!';
                     displayText.className = 'display-text text-green';
