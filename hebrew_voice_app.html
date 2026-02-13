@@ -377,6 +377,124 @@
         .display-area {
             position: relative;
         }
+
+        /* Spelling Bee Game UI */
+        .difficulty-selector {
+            display: none;
+            flex-direction: row;
+            gap: 2vmin;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .difficulty-selector.visible {
+            display: flex;
+        }
+
+        .difficulty-btn {
+            padding: 2vmin 4vmin;
+            border: 3px solid #6495ed;
+            background: white;
+            color: #6495ed;
+            border-radius: 20px;
+            font-size: clamp(16px, 4vmin, 28px);
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .difficulty-btn:active, .difficulty-btn.selected {
+            background: #6495ed;
+            color: white;
+            transform: scale(0.95);
+        }
+
+        .game-controls {
+            display: none;
+            flex-direction: row;
+            gap: 2vmin;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .game-controls.visible {
+            display: flex;
+        }
+
+        .game-btn {
+            padding: 2vmin 4vmin;
+            border: 3px solid #32cd32;
+            background: white;
+            color: #32cd32;
+            border-radius: 20px;
+            font-size: clamp(16px, 4vmin, 28px);
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .game-btn:active {
+            background: #32cd32;
+            color: white;
+            transform: scale(0.95);
+        }
+
+        .game-btn.repeat {
+            border-color: #ffa500;
+            color: #ffa500;
+        }
+
+        .game-btn.repeat:active {
+            background: #ffa500;
+        }
+
+        .spelling-letters {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1vmin;
+            justify-content: center;
+            margin-top: 2vmin;
+            font-size: clamp(20px, 6vmin, 40px);
+        }
+
+        .spelling-letter {
+            min-width: clamp(30px, 6vmin, 50px);
+            min-height: clamp(30px, 6vmin, 50px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid #ccc;
+            border-radius: 10px;
+            background: #f5f5f5;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+
+        .spelling-letter.correct {
+            background: #32cd32;
+            color: white;
+            border-color: #32cd32;
+            animation: correctPop 0.3s ease;
+        }
+
+        .spelling-letter.incorrect {
+            background: #ff5050;
+            color: white;
+            border-color: #ff5050;
+            animation: shake 0.3s ease;
+        }
+
+        @keyframes correctPop {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); }
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            75% { transform: translateX(10px); }
+        }
     </style>
 </head>
 <body>
@@ -433,9 +551,23 @@
             </div>
         </div>
 
+        <!-- Difficulty Selector (for Spelling mode) -->
+        <div id="difficultySelector" class="difficulty-selector">
+            <button class="difficulty-btn" onclick="selectDifficulty('easy')">🟢 Easy / קל</button>
+            <button class="difficulty-btn" onclick="selectDifficulty('medium')">🟡 Medium / בינוני</button>
+            <button class="difficulty-btn" onclick="selectDifficulty('hard')">🔴 Hard / קשה</button>
+        </div>
+
         <div class="display-area">
             <button id="speakerBtn" class="speaker-btn" onclick="handleSpeakerClick()">🔊</button>
             <div id="displayText" class="display-text text-blue">אמור משהו בעברית!</div>
+            <div id="spellingLetters" class="spelling-letters"></div>
+        </div>
+
+        <!-- Game Controls (for Spelling/Translation modes) -->
+        <div id="gameControls" class="game-controls">
+            <button class="game-btn repeat" onclick="repeatWord()">🔁 Repeat / חזור</button>
+            <button class="game-btn" onclick="nextWord()">➡️ Next / הבא</button>
         </div>
 
         <div class="button-area">
@@ -562,7 +694,27 @@
         let lastRecognizedText = '';
         let continuousMode = false;
 
+        // Spelling Bee Game State
+        let wordsData = null;  // Loaded from words.json
+        let spellingGame = {
+            difficulty: null,
+            currentWord: null,
+            targetWord: null,
+            userSpelling: [],
+            wordList: [],
+            score: 0
+        };
+
         const MAX_RECORDING_TIME = 10000;
+
+        // Load words.json on startup
+        fetch('words.json')
+            .then(response => response.json())
+            .then(data => {
+                wordsData = data;
+                console.log('Words loaded:', wordsData);
+            })
+            .catch(error => console.error('Failed to load words.json:', error));
 
         // ===========================================
         // ELEMENTS
@@ -581,6 +733,9 @@
         const speakerBtn = document.getElementById('speakerBtn');
         const backButton = document.querySelector('.back-button');
         const continuousBtn = document.getElementById('continuousBtn');
+        const difficultySelector = document.getElementById('difficultySelector');
+        const gameControls = document.getElementById('gameControls');
+        const spellingLetters = document.getElementById('spellingLetters');
 
         // ===========================================
         // TEXT-TO-SPEECH
@@ -837,6 +992,155 @@
         }
 
         // ===========================================
+        // SPELLING BEE GAME FUNCTIONS
+        // ===========================================
+        function selectDifficulty(difficulty) {
+            if (!wordsData) {
+                showError('Word list not loaded yet');
+                return;
+            }
+
+            spellingGame.difficulty = difficulty;
+            spellingGame.wordList = wordsData.spelling[currentLang][difficulty] || [];
+            
+            if (spellingGame.wordList.length === 0) {
+                showError('No words available for this difficulty');
+                return;
+            }
+
+            // Hide difficulty selector, show game controls
+            difficultySelector.classList.remove('visible');
+            gameControls.classList.add('visible');
+            
+            // Start first word
+            nextWord();
+        }
+
+        function nextWord() {
+            if (!spellingGame.wordList || spellingGame.wordList.length === 0) {
+                showError('No words available');
+                return;
+            }
+
+            // Pick random word
+            const randomIndex = Math.floor(Math.random() * spellingGame.wordList.length);
+            spellingGame.targetWord = spellingGame.wordList[randomIndex];
+            spellingGame.currentWord = spellingGame.targetWord;
+            spellingGame.userSpelling = [];
+            
+            // Reset spelling letters display
+            updateSpellingDisplay();
+            
+            // Speak the word
+            displayText.textContent = '👂 Listen...';
+            displayText.className = 'display-text text-blue';
+            mainButton.style.display = '';  // Show button for user to spell
+            
+            speakText(spellingGame.targetWord, () => {
+                // After speaking, show instruction
+                displayText.textContent = currentLang === 'hebrew' ? 'עכשיו אתה! אות אחר אות' : 'Your turn! Spell it letter by letter';
+                displayText.className = 'display-text text-green';
+                setState('ready');
+            });
+        }
+
+        function repeatWord() {
+            if (!spellingGame.targetWord) return;
+            
+            displayText.textContent = '👂 Listen...';
+            displayText.className = 'display-text text-blue';
+            
+            speakText(spellingGame.targetWord, () => {
+                displayText.textContent = currentLang === 'hebrew' ? 'עכשיו אתה! אות אחר אות' : 'Your turn! Spell it letter by letter';
+                displayText.className = 'display-text text-green';
+            });
+        }
+
+        function updateSpellingDisplay() {
+            if (!spellingGame.targetWord) {
+                spellingLetters.innerHTML = '';
+                return;
+            }
+
+            const letters = [...spellingGame.targetWord];
+            spellingLetters.innerHTML = letters.map((letter, index) => {
+                let className = 'spelling-letter';
+                let content = '_';
+                
+                if (spellingGame.userSpelling[index]) {
+                    content = spellingGame.userSpelling[index].char;
+                    className += spellingGame.userSpelling[index].correct ? ' correct' : ' incorrect';
+                }
+                
+                return `<div class="${className}">${content}</div>`;
+            }).join('');
+        }
+
+        function checkSpelling(spokenText) {
+            if (!spellingGame.targetWord) return;
+            
+            // Normalize the spoken text
+            const normalized = spokenText.trim().toLowerCase();
+            const targetLetters = [...spellingGame.targetWord.toLowerCase()];
+            
+            // Check if user spoke a single letter
+            let matchedLetterIndex = -1;
+            
+            // For Hebrew, check against letter names
+            if (currentLang === 'hebrew') {
+                for (const [letter, name] of Object.entries(HEBREW_LETTER_NAMES)) {
+                    if (normalized.includes(name.toLowerCase()) || normalized.includes(letter)) {
+                        // Find next unfilled position for this letter
+                        for (let i = 0; i < targetLetters.length; i++) {
+                            if (targetLetters[i] === letter.toLowerCase() && !spellingGame.userSpelling[i]) {
+                                matchedLetterIndex = i;
+                                spellingGame.userSpelling[i] = { char: letter, correct: true };
+                                break;
+                            }
+                        }
+                        break;
+                    }
+                }
+            } else {
+                // For English, check if it's a single letter
+                if (normalized.length === 1 && /[a-z]/.test(normalized)) {
+                    for (let i = 0; i < targetLetters.length; i++) {
+                        if (targetLetters[i] === normalized && !spellingGame.userSpelling[i]) {
+                            matchedLetterIndex = i;
+                            spellingGame.userSpelling[i] = { char: normalized, correct: true };
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            if (matchedLetterIndex >= 0) {
+                // Correct letter!
+                updateSpellingDisplay();
+                
+                // Check if word is complete
+                if (spellingGame.userSpelling.length === targetLetters.length && 
+                    spellingGame.userSpelling.every(l => l && l.correct)) {
+                    // Word completed successfully!
+                    displayText.textContent = currentLang === 'hebrew' ? '🎉 מצוין! מילה נכונה!' : '🎉 Excellent! Correct!';
+                    displayText.className = 'display-text text-green';
+                    speakText(currentLang === 'hebrew' ? 'מצוין' : 'Excellent');
+                    
+                    // Auto next word after delay
+                    setTimeout(nextWord, 2000);
+                } else {
+                    // Continue spelling
+                    displayText.textContent = currentLang === 'hebrew' ? 'נכון! ✓ המשך...' : 'Correct! ✓ Continue...';
+                    displayText.className = 'display-text text-green';
+                }
+            } else {
+                // Incorrect or unrecognized
+                displayText.textContent = currentLang === 'hebrew' ? '❌ נסה שוב' : '❌ Try again';
+                displayText.className = 'display-text text-red';
+            }
+        }
+
+        // ===========================================
         // CONTINUOUS MODE
         // ===========================================
         function toggleContinuous() {
@@ -934,7 +1238,31 @@
             currentMode = mode;
             modeScreen.classList.add('hidden');
             gameScreen.classList.add('active');
-            setState('ready');
+            
+            // Reset UI elements
+            difficultySelector.classList.remove('visible');
+            gameControls.classList.remove('visible');
+            spellingLetters.innerHTML = '';
+            
+            // Mode-specific initialization
+            if (mode === 'spelling') {
+                // Show difficulty selector for spelling mode
+                difficultySelector.classList.add('visible');
+                displayText.textContent = currentLang === 'hebrew' ? 'בחר רמת קושי' : 'Select Difficulty';
+                displayText.className = 'display-text text-blue';
+                mainButton.style.display = 'none';
+                
+                // Reset spelling game state
+                spellingGame.difficulty = null;
+                spellingGame.currentWord = null;
+                spellingGame.targetWord = null;
+                spellingGame.userSpelling = [];
+                spellingGame.wordList = [];
+            } else {
+                // For free-speech and translation modes, show main button
+                mainButton.style.display = '';
+                setState('ready');
+            }
         }
 
         function goBack() {
@@ -948,6 +1276,10 @@
             currentMode = null;
             lastRecognizedText = '';
             speakerBtn.classList.remove('visible');
+            difficultySelector.classList.remove('visible');
+            gameControls.classList.remove('visible');
+            spellingLetters.innerHTML = '';
+            mainButton.style.display = '';
             gameScreen.classList.remove('active');
             modeScreen.classList.remove('hidden');
         }
@@ -1105,6 +1437,14 @@
                 return;
             }
 
+            // Handle spelling mode game separately
+            if (currentMode === 'spelling' && !isError && spellingGame.targetWord) {
+                checkSpelling(text);
+                // Stay in ready state to continue spelling
+                setState('ready');
+                return;
+            }
+
             state = 'showing';
             mainButton.textContent = getText('TAP_TO_SPEAK');
             mainButton.className = 'big-button button-ready';
@@ -1116,11 +1456,8 @@
                 lastRecognizedText = text;
                 speakerBtn.classList.add('visible');
 
-                // In spelling mode, automatically speak and spell
-                if (currentMode === 'spelling') {
-                    setTimeout(() => speakAndSpell(text), 300);
-                } else if (continuousMode) {
-                    // In free speech continuous mode, speak the result then restart
+                // In free speech mode with continuous, speak the result then restart
+                if (currentMode === 'free-speech' && continuousMode) {
                     setTimeout(() => speakText(text), 300);
                 }
             } else {
