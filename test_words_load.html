@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head><title>Test Words Loading</title></head>
+<body>
+<h1>Testing words.json load</h1>
+<div id="result">Loading...</div>
+<script>
+fetch('words.json')
+    .then(response => {
+        document.getElementById('result').innerHTML = 'Response status: ' + response.status;
+        return response.json();
+    })
+    .then(data => {
+        document.getElementById('result').innerHTML = 'SUCCESS! Words loaded: ' + JSON.stringify(data.spelling.hebrew.easy);
+    })
+    .catch(error => {
+        document.getElementById('result').innerHTML = 'ERROR: ' + error.message;
+    });
+</script>
+</body>
+</html>
