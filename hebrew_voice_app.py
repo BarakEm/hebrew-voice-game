@@ -76,6 +76,15 @@ CHANNELS = 1
 CHUNK = 1024
 FORMAT = pyaudio.paInt16
 
+# Default words structure if loading fails
+DEFAULT_WORDS_DATA = {
+    "spelling": {
+        "hebrew": {"easy": [], "medium": [], "hard": []}, 
+        "english": {"easy": [], "medium": [], "hard": []}
+    },
+    "translations": []
+}
+
 
 # ===========================================
 # ENUMS AND DATA CLASSES
@@ -266,9 +275,7 @@ class HebrewVoiceApp:
                 return data
         except Exception as e:
             log.error(f"Failed to load words.json: {e}")
-            return {"spelling": {"hebrew": {"easy": [], "medium": [], "hard": []}, 
-                                "english": {"easy": [], "medium": [], "hard": []}},
-                   "translations": []}
+            return DEFAULT_WORDS_DATA.copy()
 
     def _setup_ui_rects(self):
         """Set up UI element rectangles."""
@@ -596,10 +603,16 @@ class HebrewVoiceApp:
             return
         
         lang_key = self.current_lang
-        word_list = self.words_data.get('spelling', {}).get(lang_key, {}).get(difficulty, [])
+        # Validate that the language exists in words_data
+        if (lang_key not in self.words_data.get('spelling', {}) or 
+            difficulty not in self.words_data['spelling'][lang_key]):
+            log.error(f"No words available for {lang_key}/{difficulty}")
+            return
+        
+        word_list = self.words_data['spelling'][lang_key][difficulty]
         
         if not word_list:
-            log.error(f"No words available for {difficulty}")
+            log.error(f"Empty word list for {difficulty}")
             return
         
         self.spelling_game['difficulty'] = difficulty
@@ -697,10 +710,14 @@ class HebrewVoiceApp:
         # For Hebrew, check against letter names
         if self.current_lang == 'hebrew':
             for letter, name in HEBREW_LETTER_NAMES.items():
-                if normalized in name.lower() or normalized == letter:
+                # Strip niqqud from name for comparison
+                name_stripped = strip_niqqud(name).lower()
+                # Check for exact match (with or without niqqud) or if the letter itself is spoken
+                if normalized == name_stripped or normalized == name.lower() or normalized == letter:
                     # Find next unfilled position for this letter
-                    for i in range(len(target_letters)):
-                        if target_letters[i] == letter.lower() and i >= len(self.spelling_game['user_spelling']):
+                    filled_count = len(self.spelling_game['user_spelling'])
+                    for i in range(filled_count, len(target_letters)):
+                        if target_letters[i] == letter.lower():
                             matched_index = i
                             self.spelling_game['user_spelling'].append({'char': letter, 'correct': True})
                             break
@@ -708,8 +725,9 @@ class HebrewVoiceApp:
         else:
             # For English, check if it's a single letter
             if len(normalized) == 1 and normalized.isalpha():
-                for i in range(len(target_letters)):
-                    if target_letters[i] == normalized and i >= len(self.spelling_game['user_spelling']):
+                filled_count = len(self.spelling_game['user_spelling'])
+                for i in range(filled_count, len(target_letters)):
+                    if target_letters[i] == normalized:
                         matched_index = i
                         self.spelling_game['user_spelling'].append({'char': normalized, 'correct': True})
                         break
