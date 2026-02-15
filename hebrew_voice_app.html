@@ -1182,6 +1182,13 @@
         }
 
         function nextWord() {
+            // Handle echo mode
+            if (currentMode === 'echo') {
+                nextEchoWord();
+                return;
+            }
+            
+            // Handle spelling mode
             if (!spellingGame.wordList || spellingGame.wordList.length === 0) {
                 showError('No words available');
                 return;
@@ -1210,6 +1217,21 @@
         }
 
         function repeatWord() {
+            // Handle echo mode
+            if (currentMode === 'echo') {
+                if (!echoGame.currentWord) return;
+                
+                displayText.textContent = currentLang === 'hebrew' ? 'הקשב שוב...' : 'Listen again...';
+                displayText.className = 'display-text text-purple';
+                
+                speakText(echoGame.currentWord, () => {
+                    displayText.textContent = currentLang === 'hebrew' ? 'עכשיו אתה! הקש על המיקרופון' : 'Now you! Tap the microphone';
+                    displayText.className = 'display-text text-purple';
+                });
+                return;
+            }
+            
+            // Handle spelling mode
             if (!spellingGame.targetWord) return;
             
             displayText.textContent = '👂 Listen...';
