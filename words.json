@@ -62,5 +62,17 @@
       "medium": ["house", "water", "happy", "green", "friend"],
       "hard": ["elephant", "beautiful", "computer", "butterfly"]
     }
+  },
+  "echo": {
+    "hebrew": {
+      "easy": ["שלום", "כלב", "חתול", "מים", "אבא", "אמא", "תפוח", "בננה"],
+      "medium": ["שולחן", "מחשב", "טלפון", "חלון", "דלת", "כיסא", "ספר", "כדור"],
+      "hard": ["מקרר", "מכונית", "אוטובוס", "מטוס", "רכבת", "אופניים"]
+    },
+    "english": {
+      "easy": ["hello", "cat", "dog", "sun", "mom", "dad", "apple", "banana"],
+      "medium": ["house", "water", "happy", "green", "friend", "school", "book"],
+      "hard": ["elephant", "beautiful", "computer", "butterfly", "birthday"]
+    }
   }
 }

@@ -786,6 +786,15 @@
             score: 0
         };
 
+        // Echo Practice Game State
+        let echoGame = {
+            difficulty: null,
+            currentWord: null,
+            wordList: [],
+            score: 0,
+            totalAttempts: 0
+        };
+
         const MAX_RECORDING_TIME = 10000;
 
         // Load words.json on startup
@@ -1082,20 +1091,84 @@
                 return;
             }
 
-            spellingGame.difficulty = difficulty;
-            spellingGame.wordList = wordsData.spelling[currentLang][difficulty] || [];
-            
-            if (spellingGame.wordList.length === 0) {
-                showError('No words available for this difficulty');
+            if (currentMode === 'spelling') {
+                // Spelling Bee mode
+                spellingGame.difficulty = difficulty;
+                spellingGame.wordList = wordsData.spelling[currentLang][difficulty] || [];
+                
+                if (spellingGame.wordList.length === 0) {
+                    showError('No words available for this difficulty');
+                    return;
+                }
+
+                // Hide difficulty selector, show game controls
+                difficultySelector.classList.remove('visible');
+                gameControls.classList.add('visible');
+                
+                // Start first word
+                nextWord();
+            } else if (currentMode === 'echo') {
+                // Echo Practice mode
+                echoGame.difficulty = difficulty;
+                echoGame.wordList = wordsData.echo[currentLang][difficulty] || [];
+                
+                if (echoGame.wordList.length === 0) {
+                    showError('No words available for this difficulty');
+                    return;
+                }
+
+                // Hide difficulty selector, show game controls
+                difficultySelector.classList.remove('visible');
+                gameControls.classList.add('visible');
+                
+                // Start first word
+                nextEchoWord();
+            }
+        }
+
+        // ECHO PRACTICE GAME FUNCTIONS
+        // ===========================================
+        function nextEchoWord() {
+            if (!echoGame.wordList || echoGame.wordList.length === 0) {
+                showError('No words available');
                 return;
             }
 
-            // Hide difficulty selector, show game controls
-            difficultySelector.classList.remove('visible');
-            gameControls.classList.add('visible');
+            // Pick random word
+            const randomIndex = Math.floor(Math.random() * echoGame.wordList.length);
+            echoGame.currentWord = echoGame.wordList[randomIndex];
             
-            // Start first word
-            nextWord();
+            // Update display
+            displayText.textContent = currentLang === 'hebrew' ? 'הקשב וחזור' : 'Listen and repeat';
+            displayText.className = 'display-text text-purple';
+            
+            // Show record button for echo mode
+            mainButton.style.display = '';
+            mainButton.textContent = '🎤';
+            setState('ready');
+            
+            // Speak the word automatically
+            setTimeout(() => {
+                speakText(echoGame.currentWord);
+            }, 500);
+        }
+
+        function handleEchoRecordingComplete(text) {
+            if (!text || text.trim() === '') {
+                showError(currentLang === 'hebrew' ? 'לא הבנתי, נסה שוב' : "I didn't understand, try again");
+                return;
+            }
+
+            echoGame.totalAttempts++;
+            
+            // Simple feedback - just encourage!
+            const feedback = currentLang === 'hebrew' ? 'מעולה! נסה שוב?' : 'Great! Try again?';
+            displayText.textContent = feedback;
+            
+            // Play next word after short delay
+            setTimeout(() => {
+                nextEchoWord();
+            }, 2000);
         }
 
         function nextWord() {
@@ -1351,6 +1424,18 @@
                 spellingGame.targetWord = null;
                 spellingGame.userSpelling = [];
                 spellingGame.wordList = [];
+            } else if (mode === 'echo') {
+                // Show difficulty selector for echo mode
+                difficultySelector.classList.add('visible');
+                displayText.textContent = currentLang === 'hebrew' ? 'בחר רמת קושי' : 'Select Difficulty';
+                displayText.className = 'display-text text-purple';
+                mainButton.style.display = 'none';
+                
+                // Reset echo game state
+                echoGame.difficulty = null;
+                echoGame.currentWord = null;
+                echoGame.wordList = [];
+                echoGame.score = 0;
             } else {
                 // For free-speech and translation modes, show main button
                 mainButton.style.display = '';
@@ -1535,6 +1620,12 @@
                 checkSpelling(text);
                 // Stay in ready state to continue spelling
                 setState('ready');
+                return;
+            }
+
+            // Handle echo mode - encourage and play next word
+            if (currentMode === 'echo' && !isError) {
+                handleEchoRecordingComplete(text);
                 return;
             }
 
