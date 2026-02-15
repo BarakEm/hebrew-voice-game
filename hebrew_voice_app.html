@@ -296,6 +296,7 @@
         .text-yellow { color: #daa520; }
         .text-black { color: #000; }
         .text-green { color: #32cd32; }
+        .text-purple { color: #9b59b6; }
 
         /* Button area */
         .button-area {
@@ -1164,17 +1165,18 @@
         function handleEchoRecordingComplete(text) {
             if (!text || text.trim() === '') {
                 showError(currentLang === 'hebrew' ? 'לא הבנתי, נסה שוב' : "I didn't understand, try again");
+                setState('ready');
                 return;
             }
 
             echoGame.totalAttempts++;
-            
+
             // Show what user said and encourage
-            displayText.innerHTML = currentLang === 'hebrew' 
+            displayText.innerHTML = currentLang === 'hebrew'
                 ? `אמרת: <b>${text}</b><br>מעולה! 👏<br><small>מילה הבאה בעוד שנייה...</small>`
                 : `You said: <b>${text}</b><br>Great! 👏<br><small>Next word coming...</small>`;
             displayText.className = 'display-text text-purple';
-            
+
             // Play next word after delay
             setTimeout(() => {
                 nextEchoWord();
@@ -1182,43 +1184,62 @@
         }
 
         function nextWord() {
-            if (!spellingGame.wordList || spellingGame.wordList.length === 0) {
-                showError('No words available');
-                return;
-            }
+            if (currentMode === 'echo') {
+                // Echo mode - go to next word
+                nextEchoWord();
+            } else if (currentMode === 'spelling') {
+                // Spelling mode - pick next spelling word
+                if (!spellingGame.wordList || spellingGame.wordList.length === 0) {
+                    showError('No words available');
+                    return;
+                }
 
-            // Pick random word
-            const randomIndex = Math.floor(Math.random() * spellingGame.wordList.length);
-            spellingGame.targetWord = spellingGame.wordList[randomIndex];
-            spellingGame.currentWord = spellingGame.targetWord;
-            spellingGame.userSpelling = [];
-            
-            // Reset spelling letters display
-            updateSpellingDisplay();
-            
-            // Speak the word
-            displayText.textContent = '👂 Listen...';
-            displayText.className = 'display-text text-blue';
-            mainButton.style.display = '';  // Show button for user to spell
-            
-            speakText(spellingGame.targetWord, () => {
-                // After speaking, show instruction
-                displayText.textContent = currentLang === 'hebrew' ? 'עכשיו אתה! אות אחר אות' : 'Your turn! Spell it letter by letter';
-                displayText.className = 'display-text text-green';
-                setState('ready');
-            });
+                // Pick random word
+                const randomIndex = Math.floor(Math.random() * spellingGame.wordList.length);
+                spellingGame.targetWord = spellingGame.wordList[randomIndex];
+                spellingGame.currentWord = spellingGame.targetWord;
+                spellingGame.userSpelling = [];
+
+                // Reset spelling letters display
+                updateSpellingDisplay();
+
+                // Speak the word
+                displayText.textContent = '👂 Listen...';
+                displayText.className = 'display-text text-blue';
+                mainButton.style.display = '';  // Show button for user to spell
+
+                speakText(spellingGame.targetWord, () => {
+                    // After speaking, show instruction
+                    displayText.textContent = currentLang === 'hebrew' ? 'עכשיו אתה! אות אחר אות' : 'Your turn! Spell it letter by letter';
+                    displayText.className = 'display-text text-green';
+                    setState('ready');
+                });
+            }
         }
 
         function repeatWord() {
-            if (!spellingGame.targetWord) return;
-            
-            displayText.textContent = '👂 Listen...';
-            displayText.className = 'display-text text-blue';
-            
-            speakText(spellingGame.targetWord, () => {
-                displayText.textContent = currentLang === 'hebrew' ? 'עכשיו אתה! אות אחר אות' : 'Your turn! Spell it letter by letter';
-                displayText.className = 'display-text text-green';
-            });
+            if (currentMode === 'echo') {
+                // Echo mode - repeat the current word
+                if (!echoGame.currentWord) return;
+
+                displayText.textContent = currentLang === 'hebrew' ? 'הקשב למילה...' : 'Listen to the word...';
+                displayText.className = 'display-text text-purple';
+
+                speakText(echoGame.currentWord, () => {
+                    displayText.textContent = currentLang === 'hebrew' ? 'עכשיו אתה! הקש על המיקרופון' : 'Now you! Tap the microphone';
+                });
+            } else if (currentMode === 'spelling') {
+                // Spelling mode - repeat the target word
+                if (!spellingGame.targetWord) return;
+
+                displayText.textContent = '👂 Listen...';
+                displayText.className = 'display-text text-blue';
+
+                speakText(spellingGame.targetWord, () => {
+                    displayText.textContent = currentLang === 'hebrew' ? 'עכשיו אתה! אות אחר אות' : 'Your turn! Spell it letter by letter';
+                    displayText.className = 'display-text text-green';
+                });
+            }
         }
 
         function updateSpellingDisplay() {
