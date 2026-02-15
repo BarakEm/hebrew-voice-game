@@ -1817,7 +1817,9 @@
                 const isBackBtn = e.target.classList.contains('back-button');
                 const isSpeakerBtn = e.target.id === 'speakerBtn';
                 const isContinuousBtn = e.target.classList.contains('continuous-btn');
-                if (!isLangBtn && !isBackBtn && !isSpeakerBtn && !isContinuousBtn) {
+                const isDifficultyBtn = e.target.classList.contains('difficulty-btn');
+                const isGameBtn = e.target.classList.contains('game-btn');
+                if (!isLangBtn && !isBackBtn && !isSpeakerBtn && !isContinuousBtn && !isDifficultyBtn && !isGameBtn) {
                     e.preventDefault();
                 }
             }
