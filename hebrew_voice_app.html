@@ -1219,7 +1219,10 @@
         function repeatWord() {
             // Handle echo mode
             if (currentMode === 'echo') {
-                if (!echoGame.currentWord) return;
+                if (!echoGame.currentWord) {
+                    showError(currentLang === 'hebrew' ? 'אין מילה לחזור עליה' : 'No word to repeat');
+                    return;
+                }
                 
                 displayText.textContent = currentLang === 'hebrew' ? 'הקשב שוב...' : 'Listen again...';
                 displayText.className = 'display-text text-purple';
