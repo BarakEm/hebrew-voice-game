@@ -13,6 +13,9 @@
     <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
     <link rel="apple-touch-icon" href="icons/icon-192.png">
 
+    <!-- Google Cast SDK -->
+    <script src="https://www.gstatic.com/cast/sdk/libs/cast_framework/cast_framework.js"></script>
+
     <style>
         * {
             margin: 0;
@@ -193,15 +196,16 @@
             border: 3px solid #6495ed;
             color: #6495ed;
             border-radius: 50%;
-            width: clamp(40px, 8vmin, 60px);
-            height: clamp(40px, 8vmin, 60px);
-            font-size: clamp(18px, 4vmin, 28px);
+            width: clamp(56px, 12vmin, 80px);
+            height: clamp(56px, 12vmin, 80px);
+            font-size: clamp(24px, 6vmin, 40px);
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
             flex-shrink: 0;
             transition: all 0.2s ease;
+            margin: 2vmin;
         }
         .tv-btn:active {
             transform: scale(0.95);
@@ -597,16 +601,86 @@
         // Detect if running inside the Android APK
         const isAndroidApp = typeof AndroidBridge !== 'undefined' && AndroidBridge.isAndroidApp && AndroidBridge.isAndroidApp();
 
+        // ===========================================
+        // GOOGLE CAST API SETUP
+        // ===========================================
+        let castAPI = null;
+        let castSession = null;
+
+        function initCastAPI() {
+            if (!window.cast || !window.cast.framework) {
+                console.log('Cast API not available');
+                return;
+            }
+            
+            const context = cast.framework.CastContext.getInstance();
+            context.setOptions({
+                receiverApplicationId: cast.framework.CastReceiverApplicationClass.MEDIA_RECEIVER_APP_ID,
+                autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED,
+                resumeSavedSession: true
+            });
+            
+            castAPI = context;
+            
+            // Listen for session changes
+            context.addEventListener(cast.framework.CastContextEventType.SESSION_STATE_CHANGED, onSessionStateChange);
+        }
+
+        function onSessionStateChange(event) {
+            const session = event.session;
+            if (session) {
+                castSession = session;
+                document.querySelector('.tv-btn').classList.add('casting');
+            } else {
+                castSession = null;
+                document.querySelector('.tv-btn').classList.remove('casting');
+            }
+        }
+
+        function startCast() {
+            if (!castAPI) {
+                initCastAPI();
+            }
+            if (castAPI) {
+                castAPI.requestSession().then(
+                    () => { console.log('Cast session started'); },
+                    (error) => { console.error('Cast error:', error); }
+                );
+            } else {
+                // Fallback to modal if Cast not available
+                document.getElementById('castModal').classList.add('active');
+            }
+        }
+
+        // Initialize Cast when loaded
+        if (window.cast) {
+            window['__castStarted'] = false;
+            document.addEventListener('DOMContentLoaded', () => {
+                // Small delay to ensure cast framework is ready
+                setTimeout(initCastAPI, 1000);
+            });
+        }
+
         function handleInstallOrFullscreen() {
             // Inside APK: open Android's system cast / screen-mirror settings.
-            // The OS handles the full Chromecast connection lifecycle, so
-            // screen mirroring to Mibox works reliably.
             if (isAndroidApp) {
                 AndroidBridge.openCastSettings();
                 return;
             }
 
-            // Browser: show cast instructions modal
+            // Browser with Cast API: try to start casting
+            if (window.cast && castAPI) {
+                castAPI.requestSession().then(
+                    () => { console.log('Cast started'); },
+                    (error) => { 
+                        console.log('Cast not available, showing instructions');
+                        document.getElementById('castModal').classList.add('active'); 
+                    }
+                );
+                return;
+            }
+
+            // Browser without Cast: show instructions modal
             document.getElementById('castModal').classList.add('active');
         }
 
