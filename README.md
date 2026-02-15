@@ -2,6 +2,12 @@
 
 A toddler-friendly voice recognition app for learning Hebrew speech. Designed for Raspberry Pi with touchscreen.
 
+## 🌐 Try It Online
+
+**[Hebrew Voice Game Web App](https://barakem.github.io/hebrew-voice-game/hebrew_voice_app.html)**
+
+No installation needed - works in any modern browser on desktop or mobile!
+
 ## Features
 
 ### Current (MVP)
