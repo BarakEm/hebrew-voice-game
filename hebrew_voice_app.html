@@ -89,6 +89,7 @@
         .mode-button.free-speech { background-color: #32cd32; }
         .mode-button.spelling { background-color: #ff6b6b; }
         .mode-button.translation { background-color: #4ecdc4; }
+        .mode-button.echo { background-color: #9b59b6; }
         .mode-button.disabled {
             background-color: #ccc;
             opacity: 0.6;
@@ -536,6 +537,10 @@
                 <span class="icon">🌍</span>
                 <span id="translationLabel">תרגום</span>
             </button>
+            <button class="mode-button echo" onclick="startMode('echo')">
+                <span class="icon">🔄</span>
+                <span id="echoLabel">חיקוי</span>
+            </button>
         </div>
     </div>
 
@@ -636,6 +641,7 @@
                     FREE_SPEECH: 'דיבור חופשי',
                     SPELLING: 'איות',
                     TRANSLATION: 'תרגום',
+                    ECHO: 'חיקוי',
                     TRANSLATING: 'מתרגם...',
                     TRANSLATE_TO: 'אמור משהו בעברית לתרגום לאנגלית',
                     TRANSLATION_ERROR: 'שגיאת תרגום',
@@ -662,6 +668,7 @@
                     FREE_SPEECH: 'Free Speech',
                     SPELLING: 'Spelling',
                     TRANSLATION: 'Translation',
+                    ECHO: 'Echo Practice',
                     TRANSLATING: 'Translating...',
                     TRANSLATE_TO: 'Say something in English to translate to Hebrew',
                     TRANSLATION_ERROR: 'Translation error',
@@ -725,6 +732,7 @@
         const freeSpeechLabel = document.getElementById('freeSpeechLabel');
         const spellingLabel = document.getElementById('spellingLabel');
         const translationLabel = document.getElementById('translationLabel');
+        const echoLabel = document.getElementById('echoLabel');
         const displayText = document.getElementById('displayText');
         const mainButton = document.getElementById('mainButton');
         const errorBanner = document.getElementById('errorBanner');
@@ -1226,6 +1234,7 @@
             freeSpeechLabel.textContent = getText('FREE_SPEECH');
             spellingLabel.textContent = getText('SPELLING');
             translationLabel.textContent = getText('TRANSLATION');
+            echoLabel.textContent = getText('ECHO');
 
             // Game screen
             backButton.textContent = getText('BACK');
