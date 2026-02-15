@@ -1110,10 +1110,13 @@
             } else if (currentMode === 'echo') {
                 // Echo Practice mode
                 echoGame.difficulty = difficulty;
-                echoGame.wordList = wordsData.echo[currentLang][difficulty] || [];
+                const echoWords = wordsData.echo && wordsData.echo[currentLang];
+                echoGame.wordList = (echoWords && echoWords[difficulty]) || [];
+                
+                console.log('Echo mode - difficulty:', difficulty, 'words:', echoGame.wordList);
                 
                 if (echoGame.wordList.length === 0) {
-                    showError('No words available for this difficulty');
+                    showError('No echo words for this level. Try another.');
                     return;
                 }
 
@@ -1443,6 +1446,11 @@
                 echoGame.currentWord = null;
                 echoGame.wordList = [];
                 echoGame.score = 0;
+                
+                // Check if wordsData is loaded
+                if (!wordsData || !wordsData.echo) {
+                    displayText.textContent = currentLang === 'hebrew' ? 'טוען מילים...' : 'Loading words...';
+                }
             } else {
                 // For free-speech and translation modes, show main button
                 mainButton.style.display = '';
