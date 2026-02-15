@@ -298,6 +298,21 @@
         .text-green { color: #32cd32; }
         .text-purple { color: #9b59b6; }
 
+        .emoji-pop {
+            font-size: clamp(60px, 20vmin, 180px);
+            display: block;
+            text-align: center;
+            animation: emojiBounce 0.6s ease;
+            line-height: 1.2;
+        }
+
+        @keyframes emojiBounce {
+            0% { transform: scale(0); opacity: 0; }
+            50% { transform: scale(1.3); }
+            70% { transform: scale(0.9); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
         /* Button area */
         .button-area {
             height: 22vh;
@@ -807,6 +822,17 @@
             })
             .catch(error => console.error('Failed to load words.json:', error));
 
+        function getEmoji(word) {
+            if (!wordsData || !wordsData.emoji || !word) return '';
+            return wordsData.emoji[word.trim()] || wordsData.emoji[word.trim().toLowerCase()] || '';
+        }
+
+        function emojiHtml(word) {
+            const emoji = getEmoji(word);
+            if (!emoji) return '';
+            return `<span class="emoji-pop">${emoji}</span>`;
+        }
+
         // ===========================================
         // ELEMENTS
         // ===========================================
@@ -1155,9 +1181,12 @@
             // Speak the word automatically, then update UI to prompt recording
             setTimeout(() => {
                 speakText(echoGame.currentWord);
-                // After word is spoken, prompt user to repeat
+                // After word is spoken, show emoji + prompt user to repeat
                 setTimeout(() => {
-                    displayText.textContent = currentLang === 'hebrew' ? 'עכשיו אתה! הקש על המיקרופון' : 'Now you! Tap the microphone';
+                    const wordEmoji = emojiHtml(echoGame.currentWord);
+                    displayText.innerHTML = currentLang === 'hebrew'
+                        ? `${wordEmoji}עכשיו אתה! הקש על המיקרופון`
+                        : `${wordEmoji}Now you! Tap the microphone`;
                 }, 1500);
             }, 500);
         }
@@ -1171,10 +1200,11 @@
 
             echoGame.totalAttempts++;
 
-            // Show what user said and encourage
+            // Show what user said and encourage with emoji
+            const echoEmoji = emojiHtml(echoGame.currentWord);
             displayText.innerHTML = currentLang === 'hebrew'
-                ? `אמרת: <b>${text}</b><br>מעולה! 👏<br><small>מילה הבאה בעוד שנייה...</small>`
-                : `You said: <b>${text}</b><br>Great! 👏<br><small>Next word coming...</small>`;
+                ? `${echoEmoji}אמרת: <b>${text}</b><br>מעולה! 👏<br><small>מילה הבאה בעוד שנייה...</small>`
+                : `${echoEmoji}You said: <b>${text}</b><br>Great! 👏<br><small>Next word coming...</small>`;
             displayText.className = 'display-text text-purple';
 
             // Play next word after delay
@@ -1226,7 +1256,10 @@
                 displayText.className = 'display-text text-purple';
 
                 speakText(echoGame.currentWord, () => {
-                    displayText.textContent = currentLang === 'hebrew' ? 'עכשיו אתה! הקש על המיקרופון' : 'Now you! Tap the microphone';
+                    const wordEmoji = emojiHtml(echoGame.currentWord);
+                    displayText.innerHTML = currentLang === 'hebrew'
+                        ? `${wordEmoji}עכשיו אתה! הקש על המיקרופון`
+                        : `${wordEmoji}Now you! Tap the microphone`;
                 });
             } else if (currentMode === 'spelling') {
                 // Spelling mode - repeat the target word
@@ -1317,8 +1350,11 @@
                     .length;
                 
                 if (filledCount === targetLetters.length) {
-                    // Word completed successfully!
-                    displayText.textContent = currentLang === 'hebrew' ? '🎉 מצוין! מילה נכונה!' : '🎉 Excellent! Correct!';
+                    // Word completed successfully! Show emoji celebration
+                    const spellingEmoji = emojiHtml(spellingGame.targetWord);
+                    displayText.innerHTML = currentLang === 'hebrew'
+                        ? `${spellingEmoji}🎉 מצוין! מילה נכונה!`
+                        : `${spellingEmoji}🎉 Excellent! Correct!`;
                     displayText.className = 'display-text text-green';
                     speakText(currentLang === 'hebrew' ? 'מצוין' : 'Excellent');
                     
@@ -1668,7 +1704,8 @@
             state = 'showing';
             mainButton.textContent = getText('TAP_TO_SPEAK');
             mainButton.className = 'big-button button-ready';
-            displayText.textContent = text;
+            const resultEmoji = isError ? '' : emojiHtml(text);
+            displayText.innerHTML = resultEmoji ? `${resultEmoji}${text}` : text;
             displayText.className = 'display-text text-black';
 
             // Store for TTS and show speaker button
@@ -1712,8 +1749,9 @@
             mainButton.className = 'big-button button-ready';
 
             if (translation) {
-                // Show both original and translation
-                displayText.innerHTML = `<div style="font-size: 0.5em; color: #888; margin-bottom: 10px;">${spokenText}</div>${translation}`;
+                // Show both original and translation with emoji
+                const transEmoji = emojiHtml(spokenText) || emojiHtml(translation);
+                displayText.innerHTML = `${transEmoji}<div style="font-size: 0.5em; color: #888; margin-bottom: 10px;">${spokenText}</div>${translation}`;
                 displayText.className = 'display-text text-black';
                 lastRecognizedText = translation;
                 speakerBtn.classList.add('visible');
