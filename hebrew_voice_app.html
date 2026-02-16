@@ -578,9 +578,9 @@
 
         <!-- Difficulty Selector (for Spelling mode) -->
         <div id="difficultySelector" class="difficulty-selector">
-            <button class="difficulty-btn" onclick="selectDifficulty('easy')">🟢 Easy / קל</button>
-            <button class="difficulty-btn" onclick="selectDifficulty('medium')">🟡 Medium / בינוני</button>
-            <button class="difficulty-btn" onclick="selectDifficulty('hard')">🔴 Hard / קשה</button>
+            <button class="difficulty-btn" data-difficulty="easy">🟢 Easy / קל</button>
+            <button class="difficulty-btn" data-difficulty="medium">🟡 Medium / בינוני</button>
+            <button class="difficulty-btn" data-difficulty="hard">🔴 Hard / קשה</button>
         </div>
 
         <div class="display-area">
@@ -1849,11 +1849,11 @@
         });
 
         // Add event listeners for difficulty buttons
-        difficultyBtns.forEach((btn, index) => {
-            const difficulties = ['easy', 'medium', 'hard'];
-            const difficulty = difficulties[index];
+        difficultyBtns.forEach((btn) => {
+            const difficulty = btn.dataset.difficulty;
             
             btn.addEventListener('click', (e) => {
+                e.preventDefault();
                 e.stopPropagation();
                 selectDifficulty(difficulty);
             });
