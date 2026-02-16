@@ -1849,13 +1849,11 @@
         });
 
         // Add event listeners for difficulty buttons
-        // Using pointerup event which handles both touch and mouse uniformly
+        // Using click event which handles mouse, touch, and keyboard uniformly
         difficultyBtns.forEach((btn) => {
-            const difficulty = btn.dataset.difficulty;
-            
-            btn.addEventListener('pointerup', (e) => {
-                e.preventDefault();
+            btn.addEventListener('click', (e) => {
                 e.stopPropagation();
+                const difficulty = e.currentTarget.dataset.difficulty;
                 selectDifficulty(difficulty);
             });
         });
