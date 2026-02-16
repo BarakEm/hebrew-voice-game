@@ -1849,23 +1849,15 @@
         });
 
         // Add event listeners for difficulty buttons
-        const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+        // Using pointerup event which handles both touch and mouse uniformly
         difficultyBtns.forEach((btn) => {
             const difficulty = btn.dataset.difficulty;
             
-            if (isTouchDevice) {
-                btn.addEventListener('touchend', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    selectDifficulty(difficulty);
-                });
-            } else {
-                btn.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    selectDifficulty(difficulty);
-                });
-            }
+            btn.addEventListener('pointerup', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                selectDifficulty(difficulty);
+            });
         });
 
         document.addEventListener('touchend', (e) => {
