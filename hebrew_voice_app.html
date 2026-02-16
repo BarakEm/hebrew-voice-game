@@ -578,9 +578,9 @@
 
         <!-- Difficulty Selector (for Spelling mode) -->
         <div id="difficultySelector" class="difficulty-selector">
-            <button class="difficulty-btn" onclick="selectDifficulty('easy')">🟢 Easy / קל</button>
-            <button class="difficulty-btn" onclick="selectDifficulty('medium')">🟡 Medium / בינוני</button>
-            <button class="difficulty-btn" onclick="selectDifficulty('hard')">🔴 Hard / קשה</button>
+            <button class="difficulty-btn" data-difficulty="easy">🟢 Easy / קל</button>
+            <button class="difficulty-btn" data-difficulty="medium">🟡 Medium / בינוני</button>
+            <button class="difficulty-btn" data-difficulty="hard">🔴 Hard / קשה</button>
         </div>
 
         <div class="display-area">
@@ -854,6 +854,7 @@
         const difficultySelector = document.getElementById('difficultySelector');
         const gameControls = document.getElementById('gameControls');
         const spellingLetters = document.getElementById('spellingLetters');
+        const difficultyBtns = document.querySelectorAll('.difficulty-btn');
 
         // ===========================================
         // TEXT-TO-SPEECH
@@ -1845,6 +1846,16 @@
         mainButton.addEventListener('touchend', (e) => {
             e.preventDefault();
             handleButtonClick();
+        });
+
+        // Add event listeners for difficulty buttons
+        // Using click event which handles mouse, touch, and keyboard uniformly
+        difficultyBtns.forEach((btn) => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const difficulty = e.currentTarget.dataset.difficulty;
+                selectDifficulty(difficulty);
+            });
         });
 
         document.addEventListener('touchend', (e) => {
