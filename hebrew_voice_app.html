@@ -854,6 +854,7 @@
         const difficultySelector = document.getElementById('difficultySelector');
         const gameControls = document.getElementById('gameControls');
         const spellingLetters = document.getElementById('spellingLetters');
+        const difficultyBtns = document.querySelectorAll('.difficulty-btn');
 
         // ===========================================
         // TEXT-TO-SPEECH
@@ -1845,6 +1846,23 @@
         mainButton.addEventListener('touchend', (e) => {
             e.preventDefault();
             handleButtonClick();
+        });
+
+        // Add event listeners for difficulty buttons
+        difficultyBtns.forEach((btn, index) => {
+            const difficulties = ['easy', 'medium', 'hard'];
+            const difficulty = difficulties[index];
+            
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                selectDifficulty(difficulty);
+            });
+            
+            btn.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                selectDifficulty(difficulty);
+            });
         });
 
         document.addEventListener('touchend', (e) => {
