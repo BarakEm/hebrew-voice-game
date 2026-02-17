@@ -563,6 +563,33 @@
         };
 
         // ===========================================
+        // VOICE INSTRUCTIONS (spoken guidance for kids)
+        // ===========================================
+        const VOICE_INSTRUCTIONS = {
+            hebrew: {
+                'listen':    'הקשב!',
+                'your-turn': 'עכשיו אתה!',
+                'spell-it':  'איית את המילה!',
+                'great':     'מעולה!',
+                'correct':   'נכון!',
+                'try-again': 'נסה שוב!'
+            },
+            english: {
+                'listen':    'Listen!',
+                'your-turn': 'Your turn!',
+                'spell-it':  'Spell the word!',
+                'great':     'Great job!',
+                'correct':   'Correct!',
+                'try-again': 'Try again!'
+            }
+        };
+
+        function speakInstruction(key, onComplete = null) {
+            const text = VOICE_INSTRUCTIONS[currentLang][key];
+            speakText(text, onComplete);
+        }
+
+        // ===========================================
         // STATE
         // ===========================================
         let currentLang = 'hebrew';
@@ -820,28 +847,25 @@
             // Pick random word
             const randomIndex = Math.floor(Math.random() * echoGame.wordList.length);
             echoGame.currentWord = echoGame.wordList[randomIndex];
-            
-            // Update display - prompt user to listen
-            displayText.textContent = currentLang === 'hebrew' ? 'הקשב למילה...' : 'Listen to the word...';
-            displayText.className = 'display-text text-purple';
-            
-            // Show record button 
+
+            // Show listening prompt and lock button during TTS sequence
             mainButton.style.display = '';
-            mainButton.textContent = '🎤';
-            mainButton.className = 'big-button button-ready';
-            setState('ready');
-            
-            // Speak the word automatically, then update UI to prompt recording
-            setTimeout(() => {
-                speakText(echoGame.currentWord);
-                // After word is spoken, show emoji + prompt user to repeat
-                setTimeout(() => {
+            displayText.textContent = currentLang === 'hebrew' ? 'הקשב!' : 'Listen!';
+            displayText.className = 'display-text text-purple';
+
+            // Chain: "Listen!" → word → emoji + "Your turn!" → unlock mic
+            speakInstruction('listen', () => {
+                speakText(echoGame.currentWord, () => {
                     const wordEmoji = emojiHtml(echoGame.currentWord);
                     displayText.innerHTML = currentLang === 'hebrew'
                         ? `${wordEmoji}עכשיו אתה! הקש על המיקרופון`
-                        : `${wordEmoji}Now you! Tap the microphone`;
-                }, 1500);
-            }, 500);
+                        : `${wordEmoji}Your turn! Tap the microphone`;
+                    displayText.className = 'display-text text-purple';
+                    speakInstruction('your-turn', () => {
+                        setState('ready');
+                    });
+                });
+            });
         }
 
         function handleEchoRecordingComplete(text) {
@@ -854,14 +878,14 @@
             // Show what user said and encourage with emoji
             const echoEmoji = emojiHtml(echoGame.currentWord);
             displayText.innerHTML = currentLang === 'hebrew'
-                ? `${echoEmoji}אמרת: <b>${text}</b><br>מעולה! 👏<br><small>מילה הבאה בעוד שנייה...</small>`
-                : `${echoEmoji}You said: <b>${text}</b><br>Great! 👏<br><small>Next word coming...</small>`;
+                ? `${echoEmoji}אמרת: <b>${text}</b><br>מעולה! 👏`
+                : `${echoEmoji}You said: <b>${text}</b><br>Great! 👏`;
             displayText.className = 'display-text text-purple';
 
-            // Play next word after delay
-            setTimeout(() => {
-                nextEchoWord();
-            }, 2500);
+            // Voice: "Great!" then auto-advance to next word
+            speakInstruction('great', () => {
+                setTimeout(nextEchoWord, 1000);
+            });
         }
 
         function nextWord() {
@@ -884,44 +908,56 @@
                 // Reset spelling letters display
                 updateSpellingDisplay();
 
-                // Speak the word
-                displayText.textContent = '👂 Listen...';
+                // Show listening prompt and lock button during TTS sequence
+                displayText.textContent = currentLang === 'hebrew' ? 'הקשב!' : 'Listen!';
                 displayText.className = 'display-text text-blue';
-                mainButton.style.display = '';  // Show button for user to spell
+                mainButton.style.display = '';
 
-                speakText(spellingGame.targetWord, () => {
-                    // After speaking, show instruction
-                    displayText.textContent = currentLang === 'hebrew' ? 'עכשיו אתה! אות אחר אות' : 'Your turn! Spell it letter by letter';
-                    displayText.className = 'display-text text-green';
-                    setState('ready');
+                // Chain: "Listen!" → word → "Spell the word!" → unlock mic
+                speakInstruction('listen', () => {
+                    speakText(spellingGame.targetWord, () => {
+                        displayText.textContent = currentLang === 'hebrew' ? 'איית את המילה!' : 'Spell the word!';
+                        displayText.className = 'display-text text-green';
+                        speakInstruction('spell-it', () => {
+                            setState('ready');
+                        });
+                    });
                 });
             }
         }
 
         function repeatWord() {
             if (currentMode === 'echo') {
-                // Echo mode - repeat the current word
+                // Echo mode - repeat with voice guidance
                 if (!echoGame.currentWord) return;
 
-                displayText.textContent = currentLang === 'hebrew' ? 'הקשב למילה...' : 'Listen to the word...';
+                displayText.textContent = currentLang === 'hebrew' ? 'הקשב!' : 'Listen!';
                 displayText.className = 'display-text text-purple';
 
+                // Chain: word → "Your turn!" → unlock mic
                 speakText(echoGame.currentWord, () => {
                     const wordEmoji = emojiHtml(echoGame.currentWord);
                     displayText.innerHTML = currentLang === 'hebrew'
                         ? `${wordEmoji}עכשיו אתה! הקש על המיקרופון`
-                        : `${wordEmoji}Now you! Tap the microphone`;
+                        : `${wordEmoji}Your turn! Tap the microphone`;
+                    speakInstruction('your-turn', () => {
+                        setState('ready');
+                    });
                 });
             } else if (currentMode === 'spelling') {
-                // Spelling mode - repeat the target word
+                // Spelling mode - repeat with voice guidance
                 if (!spellingGame.targetWord) return;
 
-                displayText.textContent = '👂 Listen...';
+                displayText.textContent = currentLang === 'hebrew' ? 'הקשב!' : 'Listen!';
                 displayText.className = 'display-text text-blue';
 
+                // Chain: word → "Spell the word!" → unlock mic
                 speakText(spellingGame.targetWord, () => {
-                    displayText.textContent = currentLang === 'hebrew' ? 'עכשיו אתה! אות אחר אות' : 'Your turn! Spell it letter by letter';
+                    displayText.textContent = currentLang === 'hebrew' ? 'איית את המילה!' : 'Spell the word!';
                     displayText.className = 'display-text text-green';
+                    speakInstruction('spell-it', () => {
+                        setState('ready');
+                    });
                 });
             }
         }
@@ -994,12 +1030,12 @@
             if (matchedLetterIndex >= 0) {
                 // Correct letter!
                 updateSpellingDisplay();
-                
+
                 // Check if word is complete (count filled positions)
                 const filledCount = Object.keys(spellingGame.userSpelling)
                     .filter(k => spellingGame.userSpelling[k] && spellingGame.userSpelling[k].correct)
                     .length;
-                
+
                 if (filledCount === targetLetters.length) {
                     // Word completed successfully! Show emoji celebration
                     const spellingEmoji = emojiHtml(spellingGame.targetWord);
@@ -1007,19 +1043,20 @@
                         ? `${spellingEmoji}🎉 מצוין! מילה נכונה!`
                         : `${spellingEmoji}🎉 Excellent! Correct!`;
                     displayText.className = 'display-text text-green';
-                    speakText(currentLang === 'hebrew' ? 'מצוין' : 'Excellent');
-                    
-                    // Auto next word after delay
-                    setTimeout(nextWord, 2000);
+                    speakInstruction('great', () => {
+                        setTimeout(nextWord, 1500);
+                    });
                 } else {
-                    // Continue spelling
+                    // Continue spelling - voice feedback
                     displayText.textContent = currentLang === 'hebrew' ? 'נכון! ✓ המשך...' : 'Correct! ✓ Continue...';
                     displayText.className = 'display-text text-green';
+                    speakInstruction('correct');
                 }
             } else {
-                // Incorrect or unrecognized
+                // Incorrect or unrecognized - voice feedback
                 displayText.textContent = currentLang === 'hebrew' ? '❌ נסה שוב' : '❌ Try again';
                 displayText.className = 'display-text text-red';
+                speakInstruction('try-again');
             }
         }
 
