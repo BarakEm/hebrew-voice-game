@@ -13,9 +13,6 @@
     <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
     <link rel="apple-touch-icon" href="icons/icon-192.png">
 
-    <!-- Google Cast SDK -->
-    <script src="https://www.gstatic.com/cast/sdk/libs/cast_framework/cast_framework.js"></script>
-
     <style>
         * {
             margin: 0;
@@ -30,6 +27,7 @@
             height: 100%;
             overflow: hidden;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            touch-action: manipulation;
         }
 
         body {
@@ -38,6 +36,7 @@
             flex-direction: column;
             padding: 4vmin;
             gap: 3vmin;
+            touch-action: manipulation;
         }
 
         /* Mode Selection Screen */
@@ -163,111 +162,11 @@
             color: white;
         }
 
-        /* Continuous mode button */
-        .continuous-btn {
-            background: transparent;
-            border: 3px solid #9b59b6;
-            color: #9b59b6;
-            border-radius: 50%;
-            width: clamp(40px, 8vmin, 60px);
-            height: clamp(40px, 8vmin, 60px);
-            font-size: clamp(18px, 4vmin, 28px);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.2s ease;
+        /* Button disabled during TTS */
+        .button-speaking {
+            background-color: #b0b0b0;
+            cursor: not-allowed;
         }
-
-        .continuous-btn.active {
-            background: #9b59b6;
-            color: white;
-            animation: continuousPulse 1s ease-in-out infinite;
-        }
-
-        @keyframes continuousPulse {
-            0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(155, 89, 182, 0.4); }
-            50% { transform: scale(1.05); box-shadow: 0 0 15px 5px rgba(155, 89, 182, 0.3); }
-        }
-
-        /* Install / Fullscreen button */
-        .tv-btn {
-            background: transparent;
-            border: 3px solid #6495ed;
-            color: #6495ed;
-            border-radius: 50%;
-            width: clamp(56px, 12vmin, 80px);
-            height: clamp(56px, 12vmin, 80px);
-            font-size: clamp(24px, 6vmin, 40px);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-            transition: all 0.2s ease;
-            margin: 2vmin;
-        }
-        .tv-btn:active {
-            transform: scale(0.95);
-            background: #6495ed;
-            color: white;
-        }
-        .tv-btn.hidden { display: none; }
-        .tv-btn.casting {
-            border-color: #32cd32;
-            color: #32cd32;
-            animation: continuousPulse 1.5s ease-in-out infinite;
-        }
-
-        /* Cast modal */
-        .cast-modal-overlay {
-            display: none;
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.6);
-            z-index: 1000;
-            align-items: center;
-            justify-content: center;
-            padding: 6vmin;
-        }
-        .cast-modal-overlay.active { display: flex; }
-        .cast-modal {
-            background: white;
-            border-radius: 20px;
-            padding: 5vmin;
-            max-width: 400px;
-            width: 100%;
-            text-align: center;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
-        }
-        .cast-modal h2 {
-            color: #6495ed;
-            font-size: clamp(18px, 5vmin, 28px);
-            margin-bottom: 3vmin;
-        }
-        .cast-modal .steps {
-            text-align: left;
-            direction: ltr;
-            font-size: clamp(14px, 3.5vmin, 20px);
-            color: #333;
-            line-height: 1.8;
-            margin: 3vmin 0;
-        }
-        .cast-modal .steps li {
-            margin: 1.5vmin 0;
-        }
-        .cast-modal .close-btn {
-            background: #6495ed;
-            color: white;
-            border: none;
-            border-radius: 15px;
-            padding: 2.5vmin 6vmin;
-            font-size: clamp(16px, 4vmin, 22px);
-            font-weight: bold;
-            cursor: pointer;
-            margin-top: 2vmin;
-        }
-        .cast-modal .close-btn:active { transform: scale(0.95); }
 
         /* Display area */
         .display-area {
@@ -521,29 +420,9 @@
 <body>
     <div id="errorBanner" class="error-banner"></div>
 
-    <!-- Cast Instructions Modal -->
-    <div id="castModal" class="cast-modal-overlay" onclick="closeCastModal(event)">
-        <div class="cast-modal" onclick="event.stopPropagation()">
-            <h2>&#128250; Cast to TV</h2>
-            <ol class="steps">
-                <li>Open Chrome menu (<b>&#8942;</b> top right)</li>
-                <li>Tap <b>"Cast..."</b></li>
-                <li>Select your <b>Mibox / TV</b></li>
-                <li>Choose <b>"Cast tab"</b> if prompted</li>
-            </ol>
-            <p style="color:#888; font-size:clamp(12px,3vmin,16px); margin-bottom:2vmin;">
-                The game displays on TV while you control from your phone.
-            </p>
-            <button class="close-btn" onclick="closeCastModal()">OK</button>
-        </div>
-    </div>
-
     <!-- Mode Selection Screen -->
     <div id="modeScreen" class="mode-screen">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-            <div class="mode-title" id="modeTitle" style="flex:1;">בחר משחק</div>
-            <button class="tv-btn" onclick="handleInstallOrFullscreen()" title="Cast to TV">&#128250;</button>
-        </div>
+        <div class="mode-title" id="modeTitle">בחר משחק</div>
         <div class="mode-buttons">
             <button class="mode-button free-speech" onclick="startMode('free-speech')">
                 <span class="icon">🎤</span>
@@ -568,8 +447,6 @@
     <div id="gameScreen" class="game-screen">
         <div class="top-bar">
             <button class="back-button" onclick="goBack()">← חזרה</button>
-            <button class="continuous-btn" id="continuousBtn" onclick="toggleContinuous()">&#8734;</button>
-            <button class="tv-btn" id="installBtn" onclick="handleInstallOrFullscreen()" title="Cast to TV">&#128250;</button>
             <div class="lang-toggle">
                 <button class="lang-btn active" id="btnHebrew" onclick="setLanguage('hebrew')">עברית</button>
                 <button class="lang-btn" id="btnEnglish" onclick="setLanguage('english')">English</button>
@@ -618,96 +495,6 @@
         const isAndroidApp = typeof AndroidBridge !== 'undefined' && AndroidBridge.isAndroidApp && AndroidBridge.isAndroidApp();
 
         // ===========================================
-        // GOOGLE CAST API SETUP
-        // ===========================================
-        let castAPI = null;
-        let castSession = null;
-
-        function initCastAPI() {
-            if (!window.cast || !window.cast.framework) {
-                console.log('Cast API not available');
-                return;
-            }
-            
-            const context = cast.framework.CastContext.getInstance();
-            context.setOptions({
-                receiverApplicationId: cast.framework.CastReceiverApplicationClass.MEDIA_RECEIVER_APP_ID,
-                autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED,
-                resumeSavedSession: true
-            });
-            
-            castAPI = context;
-            
-            // Listen for session changes
-            context.addEventListener(cast.framework.CastContextEventType.SESSION_STATE_CHANGED, onSessionStateChange);
-        }
-
-        function onSessionStateChange(event) {
-            const session = event.session;
-            if (session) {
-                castSession = session;
-                document.querySelector('.tv-btn').classList.add('casting');
-            } else {
-                castSession = null;
-                document.querySelector('.tv-btn').classList.remove('casting');
-            }
-        }
-
-        function startCast() {
-            if (!castAPI) {
-                initCastAPI();
-            }
-            if (castAPI) {
-                castAPI.requestSession().then(
-                    () => { console.log('Cast session started'); },
-                    (error) => { console.error('Cast error:', error); }
-                );
-            } else {
-                // Fallback to modal if Cast not available
-                document.getElementById('castModal').classList.add('active');
-            }
-        }
-
-        // Initialize Cast when loaded
-        if (window.cast) {
-            window['__castStarted'] = false;
-            document.addEventListener('DOMContentLoaded', () => {
-                // Small delay to ensure cast framework is ready
-                setTimeout(initCastAPI, 1000);
-            });
-        }
-
-        function handleInstallOrFullscreen() {
-            // Inside APK: open Android's system cast / screen-mirror settings.
-            if (isAndroidApp) {
-                AndroidBridge.openCastSettings();
-                return;
-            }
-
-            // Browser with Cast API: try to start casting
-            if (window.cast && castAPI) {
-                castAPI.requestSession().then(
-                    () => { console.log('Cast started'); },
-                    (error) => { 
-                        console.log('Cast not available, showing instructions');
-                        document.getElementById('castModal').classList.add('active'); 
-                    }
-                );
-                return;
-            }
-
-            // Browser without Cast: show instructions modal
-            document.getElementById('castModal').classList.add('active');
-        }
-
-        function closeCastModal(event) {
-            // Close when clicking overlay background or the OK button
-            if (!event || event.target === event.currentTarget) {
-                document.getElementById('castModal').classList.remove('active');
-            }
-        }
-
-        // ===========================================
         // LETTER NAMES FOR SPELLING
         // ===========================================
         const HEBREW_LETTER_NAMES = {
@@ -745,9 +532,7 @@
                     NOT_UNDERSTOOD: 'לא הבנתי',
                     NETWORK_ERROR: 'שגיאת רשת',
                     NOT_SUPPORTED: 'הדפדפן לא תומך בזיהוי קול',
-                    NEED_PERMISSION: 'נדרשת הרשאת מיקרופון',
-                    CONTINUOUS: 'רצף',
-                    CONTINUOUS_ON: 'רצף פעיל'
+                    NEED_PERMISSION: 'נדרשת הרשאת מיקרופון'
                 }
             },
             english: {
@@ -772,9 +557,7 @@
                     NOT_UNDERSTOOD: "Didn't understand",
                     NETWORK_ERROR: 'Network error',
                     NOT_SUPPORTED: 'Browser does not support speech recognition',
-                    NEED_PERMISSION: 'Microphone permission required',
-                    CONTINUOUS: 'Loop',
-                    CONTINUOUS_ON: 'Loop Active'
+                    NEED_PERMISSION: 'Microphone permission required'
                 }
             }
         };
@@ -789,7 +572,7 @@
         let recordingTimeout = null;
         let isRecognitionActive = false;
         let lastRecognizedText = '';
-        let continuousMode = false;
+        let isSpeaking = false;
 
         // Spelling Bee Game State
         let wordsData = null;  // Loaded from words.json
@@ -798,17 +581,14 @@
             currentWord: null,
             targetWord: null,
             userSpelling: [],
-            wordList: [],
-            score: 0
+            wordList: []
         };
 
         // Echo Practice Game State
         let echoGame = {
             difficulty: null,
             currentWord: null,
-            wordList: [],
-            score: 0,
-            totalAttempts: 0
+            wordList: []
         };
 
         const MAX_RECORDING_TIME = 10000;
@@ -850,7 +630,6 @@
         const btnEnglish = document.getElementById('btnEnglish');
         const speakerBtn = document.getElementById('speakerBtn');
         const backButton = document.querySelector('.back-button');
-        const continuousBtn = document.getElementById('continuousBtn');
         const difficultySelector = document.getElementById('difficultySelector');
         const gameControls = document.getElementById('gameControls');
         const spellingLetters = document.getElementById('spellingLetters');
@@ -893,41 +672,26 @@
             }
 
             stopTts();
+            setSpeaking(true);
             const langCode = LANGUAGES[currentLang].code;
 
+            const done = () => {
+                setSpeaking(false);
+                if (onComplete) onComplete();
+            };
+
             if (useNativeTts) {
-                nativeSpeak(textToSpeak, langCode, () => {
-                    if (onComplete) {
-                        onComplete();
-                    } else if (continuousMode) {
-                        restartListeningAfterDelay();
-                    }
-                });
+                nativeSpeak(textToSpeak, langCode, done);
                 return;
             }
 
-            if (!synth) { if (onComplete) onComplete(); return; }
+            if (!synth) { done(); return; }
 
             const utterance = new SpeechSynthesisUtterance(textToSpeak);
             utterance.lang = langCode;
             utterance.rate = 0.8;
-
-            utterance.onend = () => {
-                if (onComplete) {
-                    onComplete();
-                } else if (continuousMode) {
-                    restartListeningAfterDelay();
-                }
-            };
-
-            utterance.onerror = () => {
-                if (onComplete) {
-                    onComplete();
-                } else if (continuousMode) {
-                    restartListeningAfterDelay();
-                }
-            };
-
+            utterance.onend = done;
+            utterance.onerror = done;
             synth.speak(utterance);
         }
 
@@ -941,103 +705,6 @@
                 speakInLanguage(lastRecognizedText, targetLangCode);
             } else {
                 speakText();
-            }
-        }
-
-        // Speak and spell: say each word then spell it letter by letter
-        function speakAndSpell(text) {
-            if (!text) {
-                if (continuousMode) restartListeningAfterDelay();
-                return;
-            }
-
-            stopTts();
-            const words = text.split(/\s+/).filter(w => w.length > 0);
-            const langCode = LANGUAGES[currentLang].code;
-            const isHebrew = currentLang === 'hebrew';
-
-            if (useNativeTts) {
-                // For native TTS, queue all speech sequentially with delays
-                let totalDelay = 0;
-                words.forEach((word, wordIndex) => {
-                    // Say the whole word
-                    setTimeout(() => AndroidBridge.speak(word, langCode), totalDelay);
-                    totalDelay += estimateSpeechDuration(word);
-
-                    // Spell each letter
-                    const letters = [...word];
-                    letters.forEach(letter => {
-                        let letterName;
-                        if (isHebrew && HEBREW_LETTER_NAMES[letter]) {
-                            letterName = HEBREW_LETTER_NAMES[letter];
-                        } else {
-                            letterName = letter.toUpperCase();
-                        }
-                        setTimeout(() => AndroidBridge.speak(letterName, langCode), totalDelay);
-                        totalDelay += estimateSpeechDuration(letterName, 0.7);
-                    });
-
-                    if (wordIndex < words.length - 1) {
-                        totalDelay += 500; // pause between words
-                    }
-                });
-
-                if (continuousMode) {
-                    setTimeout(() => restartListeningAfterDelay(), totalDelay);
-                }
-                return;
-            }
-
-            if (!synth) { if (continuousMode) restartListeningAfterDelay(); return; }
-
-            let lastUtterance = null;
-
-            // Queue all utterances
-            words.forEach((word, wordIndex) => {
-                // Say the whole word first
-                const wordUtterance = new SpeechSynthesisUtterance(word);
-                wordUtterance.lang = langCode;
-                wordUtterance.rate = 0.8;
-                synth.speak(wordUtterance);
-                lastUtterance = wordUtterance;
-
-                // Then spell each letter
-                const letters = [...word];
-                letters.forEach((letter, letterIndex) => {
-                    let letterName;
-                    if (isHebrew && HEBREW_LETTER_NAMES[letter]) {
-                        letterName = HEBREW_LETTER_NAMES[letter];
-                    } else {
-                        // For English or unknown characters, just say the letter
-                        letterName = letter.toUpperCase();
-                    }
-
-                    const letterUtterance = new SpeechSynthesisUtterance(letterName);
-                    letterUtterance.lang = langCode;
-                    letterUtterance.rate = 0.7;
-                    synth.speak(letterUtterance);
-                    lastUtterance = letterUtterance;
-                });
-
-                // Add a pause between words (using a silent utterance or short pause word)
-                if (wordIndex < words.length - 1) {
-                    const pauseUtterance = new SpeechSynthesisUtterance('.');
-                    pauseUtterance.lang = langCode;
-                    pauseUtterance.rate = 0.3;
-                    pauseUtterance.volume = 0;
-                    synth.speak(pauseUtterance);
-                    lastUtterance = pauseUtterance;
-                }
-            });
-
-            // Restart listening after spelling completes in continuous mode
-            if (lastUtterance && continuousMode) {
-                lastUtterance.onend = () => {
-                    restartListeningAfterDelay();
-                };
-                lastUtterance.onerror = () => {
-                    restartListeningAfterDelay();
-                };
             }
         }
 
@@ -1073,40 +740,25 @@
             }
 
             stopTts();
+            setSpeaking(true);
+
+            const done = () => {
+                setSpeaking(false);
+                if (onComplete) onComplete();
+            };
 
             if (useNativeTts) {
-                nativeSpeak(text, langCode, () => {
-                    if (onComplete) {
-                        onComplete();
-                    } else if (continuousMode) {
-                        restartListeningAfterDelay();
-                    }
-                });
+                nativeSpeak(text, langCode, done);
                 return;
             }
 
-            if (!synth) { if (onComplete) onComplete(); return; }
+            if (!synth) { done(); return; }
 
             const utterance = new SpeechSynthesisUtterance(text);
             utterance.lang = langCode;
             utterance.rate = 0.8;
-
-            utterance.onend = () => {
-                if (onComplete) {
-                    onComplete();
-                } else if (continuousMode) {
-                    restartListeningAfterDelay();
-                }
-            };
-
-            utterance.onerror = () => {
-                if (onComplete) {
-                    onComplete();
-                } else if (continuousMode) {
-                    restartListeningAfterDelay();
-                }
-            };
-
+            utterance.onend = done;
+            utterance.onerror = done;
             synth.speak(utterance);
         }
 
@@ -1198,8 +850,6 @@
                 setState('ready');
                 return;
             }
-
-            echoGame.totalAttempts++;
 
             // Show what user said and encourage with emoji
             const echoEmoji = emojiHtml(echoGame.currentWord);
@@ -1374,44 +1024,6 @@
         }
 
         // ===========================================
-        // CONTINUOUS MODE
-        // ===========================================
-        function toggleContinuous() {
-            continuousMode = !continuousMode;
-            updateContinuousUI();
-            console.log('Continuous mode:', continuousMode);
-
-            if (continuousMode && (state === 'ready' || state === 'showing')) {
-                // Start listening immediately when enabling continuous mode
-                startRecording();
-            } else if (!continuousMode && isRecognitionActive) {
-                // Stop if we're currently recording
-                stopRecording();
-            }
-        }
-
-        function updateContinuousUI() {
-            if (continuousMode) {
-                continuousBtn.classList.add('active');
-                continuousBtn.title = getText('CONTINUOUS_ON');
-            } else {
-                continuousBtn.classList.remove('active');
-                continuousBtn.title = getText('CONTINUOUS');
-            }
-        }
-
-        function restartListeningAfterDelay(delay = 500) {
-            if (continuousMode && !isRecognitionActive) {
-                setTimeout(() => {
-                    if (continuousMode && (state === 'ready' || state === 'showing')) {
-                        console.log('Continuous mode: restarting listening');
-                        startRecording();
-                    }
-                }, delay);
-            }
-        }
-
-        // ===========================================
         // LANGUAGE FUNCTIONS
         // ===========================================
         function getText(key) {
@@ -1503,7 +1115,6 @@
                 echoGame.difficulty = null;
                 echoGame.currentWord = null;
                 echoGame.wordList = [];
-                echoGame.score = 0;
                 
                 // Check if wordsData is loaded
                 if (!wordsData || !wordsData.echo) {
@@ -1520,9 +1131,7 @@
             if (isRecognitionActive) {
                 stopRecording();
             }
-            // Disable continuous mode when going back
-            continuousMode = false;
-            updateContinuousUI();
+            stopTts();
 
             currentMode = null;
             lastRecognizedText = '';
@@ -1713,19 +1322,9 @@
             if (!isError) {
                 lastRecognizedText = text;
                 speakerBtn.classList.add('visible');
-
-                // In free speech mode with continuous, speak the result then restart
-                if (currentMode === 'free-speech' && continuousMode) {
-                    setTimeout(() => speakText(text), 300);
-                }
             } else {
                 lastRecognizedText = '';
                 speakerBtn.classList.remove('visible');
-
-                // In continuous mode, keep listening even on errors
-                if (continuousMode) {
-                    restartListeningAfterDelay(1000);
-                }
             }
         }
 
@@ -1759,17 +1358,13 @@
 
                 // Speak the translation in target language
                 setTimeout(() => {
-                    speakInLanguage(translation, targetLangCode, continuousMode ? () => restartListeningAfterDelay() : null);
+                    speakInLanguage(translation, targetLangCode);
                 }, 300);
             } else {
                 displayText.textContent = getText('TRANSLATION_ERROR');
                 displayText.className = 'display-text text-red';
                 lastRecognizedText = '';
                 speakerBtn.classList.remove('visible');
-
-                if (continuousMode) {
-                    restartListeningAfterDelay(1000);
-                }
             }
         }
 
@@ -1831,7 +1426,14 @@
             }
         }
 
+        let lastButtonPress = 0;
         function handleButtonClick() {
+            if (isSpeaking) return;
+
+            const now = Date.now();
+            if (now - lastButtonPress < 400) return;
+            lastButtonPress = now;
+
             if (state === 'recording') {
                 stopRecording();
             } else if (state === 'ready' || state === 'showing') {
@@ -1840,16 +1442,29 @@
         }
 
         // ===========================================
+        // TTS UI LOCK
+        // ===========================================
+        function setSpeaking(speaking) {
+            isSpeaking = speaking;
+            if (speaking) {
+                mainButton.classList.add('button-speaking');
+                mainButton.disabled = true;
+            } else {
+                mainButton.classList.remove('button-speaking');
+                mainButton.disabled = false;
+            }
+        }
+
+        // ===========================================
         // EVENT LISTENERS
         // ===========================================
-        mainButton.addEventListener('click', handleButtonClick);
-        mainButton.addEventListener('touchend', (e) => {
+        // Single pointerup listener prevents double-fire from click+touchend
+        mainButton.addEventListener('pointerup', (e) => {
             e.preventDefault();
             handleButtonClick();
         });
 
         // Add event listeners for difficulty buttons
-        // Using click event which handles mouse, touch, and keyboard uniformly
         difficultyBtns.forEach((btn) => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -1857,23 +1472,6 @@
                 selectDifficulty(difficulty);
             });
         });
-
-        document.addEventListener('touchend', (e) => {
-            // Only prevent default on game screen to avoid double-tap zoom
-            // But allow interactive buttons to work normally
-            if (gameScreen.classList.contains('active')) {
-                const isLangBtn = e.target.classList.contains('lang-btn');
-                const isBackBtn = e.target.classList.contains('back-button');
-                const isSpeakerBtn = e.target.id === 'speakerBtn';
-                const isContinuousBtn = e.target.classList.contains('continuous-btn');
-                const isDifficultyBtn = e.target.classList.contains('difficulty-btn');
-                const isGameBtn = e.target.classList.contains('game-btn');
-                if (!isLangBtn && !isBackBtn && !isSpeakerBtn && !isContinuousBtn && !isDifficultyBtn && !isGameBtn) {
-                    e.preventDefault();
-                }
-            }
-        }, { passive: false });
-
         // ===========================================
         // INITIALIZATION
         // ===========================================
