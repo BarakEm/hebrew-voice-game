@@ -16,9 +16,10 @@ import logging
 import io
 import json
 import random
+import math
 from enum import Enum
-from dataclasses import dataclass
-from typing import Optional, Callable
+from dataclasses import dataclass, field
+from typing import Optional, Callable, List
 import speech_recognition as sr
 from bidi.algorithm import get_display
 import requests
@@ -69,6 +70,48 @@ TEAL = (78, 205, 196)
 CORAL = (255, 107, 107)
 GRAY = (200, 200, 200)
 PURPLE = (155, 89, 182)  # Continuous mode color
+ORANGE = (255, 159, 67)  # Balloon mode button color
+
+# Balloon game colors — bright and toddler-friendly
+BALLOON_COLORS = [
+    (255, 82,  82),   # red
+    (255, 112, 67),   # deep orange
+    (255, 152, 0),    # orange
+    (253, 216, 53),   # yellow
+    (102, 187, 106),  # green
+    (38,  198, 218),  # cyan
+    (66,  165, 245),  # blue
+    (171, 71,  188),  # purple
+    (236, 64,  122),  # pink
+    (38,  166, 154),  # teal
+]
+
+# All 22 Hebrew letters with TTS names (niqqud for clear speech) and
+# recognition match variants (what Google he-IL returns when child speaks)
+BALLOON_LETTERS = [
+    {'letter': 'א', 'tts_name': 'אָלֶף',  'match_names': ['אלף']},
+    {'letter': 'ב', 'tts_name': 'בֵּית',  'match_names': ['בית', 'בת']},
+    {'letter': 'ג', 'tts_name': 'גִּימֶל', 'match_names': ['גימל', 'גמל']},
+    {'letter': 'ד', 'tts_name': 'דָּלֶת',  'match_names': ['דלת']},
+    {'letter': 'ה', 'tts_name': 'הֵא',     'match_names': ['הא', 'הה']},
+    {'letter': 'ו', 'tts_name': 'וָו',     'match_names': ['וו', 'ואו', 'ווי']},
+    {'letter': 'ז', 'tts_name': 'זַיִן',   'match_names': ['זין', 'זיין']},
+    {'letter': 'ח', 'tts_name': 'חֵית',    'match_names': ['חית', 'חת']},
+    {'letter': 'ט', 'tts_name': 'טֵית',    'match_names': ['טית', 'טת']},
+    {'letter': 'י', 'tts_name': 'יוֹד',    'match_names': ['יוד']},
+    {'letter': 'כ', 'tts_name': 'כָּף',    'match_names': ['כף']},
+    {'letter': 'ל', 'tts_name': 'לָמֶד',   'match_names': ['למד']},
+    {'letter': 'מ', 'tts_name': 'מֵם',     'match_names': ['מם']},
+    {'letter': 'נ', 'tts_name': 'נוּן',    'match_names': ['נון']},
+    {'letter': 'ס', 'tts_name': 'סָמֶך',   'match_names': ['סמך']},
+    {'letter': 'ע', 'tts_name': 'עַיִן',   'match_names': ['עין', 'עיין']},
+    {'letter': 'פ', 'tts_name': 'פֵּא',    'match_names': ['פא', 'פה']},
+    {'letter': 'צ', 'tts_name': 'צָדִי',   'match_names': ['צדי', 'צד']},
+    {'letter': 'ק', 'tts_name': 'קוֹף',    'match_names': ['קוף']},
+    {'letter': 'ר', 'tts_name': 'רֵישׁ',   'match_names': ['ריש']},
+    {'letter': 'ש', 'tts_name': 'שִׁין',   'match_names': ['שין']},
+    {'letter': 'ת', 'tts_name': 'תָּו',    'match_names': ['תו', 'תב']},
+]
 
 # Audio settings
 RECORD_SAMPLE_RATE = 44100
@@ -95,12 +138,14 @@ class AppState(Enum):
     RECORDING = "recording"
     PROCESSING = "processing"
     SHOWING = "showing"
+    BALLOON_GAME = "balloon_game"
 
 
 class GameMode(Enum):
     FREE_SPEECH = "free_speech"
     SPELLING = "spelling"
     TRANSLATION = "translation"
+    BALLOONS = "balloons"
 
 
 @dataclass
@@ -109,6 +154,24 @@ class Language:
     name: str
     native_name: str
     dir: str  # 'rtl' or 'ltr'
+
+
+@dataclass
+class Balloon:
+    id: int
+    letter: str           # Single Hebrew letter to display
+    tts_name: str         # Name spoken by TTS (with niqqud)
+    match_names: List[str]  # What Google he-IL returns when child says the name
+    x: float              # Base x position in pixels
+    y: float              # Centre y position in pixels
+    speed: float          # Pixels/second upward
+    drift_amp: float      # Horizontal sinusoidal amplitude in pixels
+    drift_freq: float     # Drift frequency in Hz
+    drift_phase: float    # Phase offset in radians
+    color: tuple          # (R, G, B)
+    age: float = 0.0      # Seconds since creation
+    popping: bool = False
+    pop_progress: float = 0.0  # 0.0 → 1.0 during pop animation
 
 
 LANGUAGES = {
@@ -148,6 +211,7 @@ UI_TEXT = {
         'ERROR': 'שגיאה',
         'CONTINUOUS': 'רצף',
         'CONTINUOUS_ON': 'רצף פעיל',
+        'BALLOONS': 'בלונים - אותיות',
     },
     'english': {
         'SELECT_MODE': 'Select Game',
@@ -169,6 +233,7 @@ UI_TEXT = {
         'ERROR': 'Error',
         'CONTINUOUS': 'Loop',
         'CONTINUOUS_ON': 'Loop Active',
+        'BALLOONS': 'Letter Balloons',
     }
 }
 
@@ -252,6 +317,30 @@ class HebrewVoiceApp:
             'score': 0
         }
 
+        # Balloon game state
+        self.balloon_game: dict = {
+            'active': False,
+            'balloons': [],       # list of Balloon objects
+            'score': 0,
+            'stop_flag': False,   # signals listening thread to exit
+            'listening': False,
+            'mic_status': 'off',  # 'off' | 'starting' | 'listening' | 'processing' | 'error'
+            'next_id': 0,
+            'sky_surface': None,  # pre-generated gradient (lazy)
+        }
+        # Balloon dimensions — proportional to screen so it works on Pi + desktop
+        self.bln_body_w = int(min(SCREEN_WIDTH, SCREEN_HEIGHT) * 0.155)
+        self.bln_body_h = int(self.bln_body_w * 1.22)
+        # Separate temp file for balloon TTS so it doesn't conflict with main TTS
+        self.temp_balloon_tts = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False).name
+        # Balloon-specific fonts
+        _bln_letter_sz = max(20, int(self.bln_body_h * 0.52))
+        self.bln_letter_font = pygame.font.Font(self.font_path, _bln_letter_sz)
+        self.bln_score_font  = pygame.font.Font(self.font_path, int(SCREEN_HEIGHT * 0.065))
+        self.bln_hint_font   = pygame.font.Font(self.font_path, int(SCREEN_HEIGHT * 0.042))
+        # Delta-time for balloon animation (seconds of last frame)
+        self._last_dt: float = 1 / 60.0
+
     def _find_hebrew_font(self) -> str:
         """Find a font that supports Hebrew."""
         font_paths = [
@@ -282,21 +371,25 @@ class HebrewVoiceApp:
         margin = int(min(SCREEN_WIDTH, SCREEN_HEIGHT) * 0.04)
         button_height = int(SCREEN_HEIGHT * 0.22)
 
-        # Mode selection buttons
-        mode_gap = int(SCREEN_HEIGHT * 0.03)
-        mode_button_height = int((SCREEN_HEIGHT - margin * 4 - mode_gap * 2 - SCREEN_HEIGHT * 0.12) / 3)
+        # Mode selection buttons (4 modes)
+        mode_gap = int(SCREEN_HEIGHT * 0.025)
+        mode_button_height = int((SCREEN_HEIGHT - margin * 4 - mode_gap * 3 - SCREEN_HEIGHT * 0.12) / 4)
 
         self.mode_buttons = {
             GameMode.FREE_SPEECH: pygame.Rect(
-                margin, int(SCREEN_HEIGHT * 0.15),
+                margin, int(SCREEN_HEIGHT * 0.13),
                 SCREEN_WIDTH - margin * 2, mode_button_height
             ),
             GameMode.SPELLING: pygame.Rect(
-                margin, int(SCREEN_HEIGHT * 0.15) + mode_button_height + mode_gap,
+                margin, int(SCREEN_HEIGHT * 0.13) + mode_button_height + mode_gap,
                 SCREEN_WIDTH - margin * 2, mode_button_height
             ),
             GameMode.TRANSLATION: pygame.Rect(
-                margin, int(SCREEN_HEIGHT * 0.15) + (mode_button_height + mode_gap) * 2,
+                margin, int(SCREEN_HEIGHT * 0.13) + (mode_button_height + mode_gap) * 2,
+                SCREEN_WIDTH - margin * 2, mode_button_height
+            ),
+            GameMode.BALLOONS: pygame.Rect(
+                margin, int(SCREEN_HEIGHT * 0.13) + (mode_button_height + mode_gap) * 3,
                 SCREEN_WIDTH - margin * 2, mode_button_height
             ),
         }
@@ -929,6 +1022,320 @@ class HebrewVoiceApp:
                 self.pending_restart_listening = True
 
     # ===========================================
+    # BALLOON LETTER GAME
+    # ===========================================
+
+    def _make_sky_gradient(self) -> pygame.Surface:
+        """Pre-generate a sky-blue vertical gradient for the balloon background."""
+        surf = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+        top = (93, 184, 232)
+        bot = (220, 244, 255)
+        for y in range(SCREEN_HEIGHT):
+            t = y / SCREEN_HEIGHT
+            c = tuple(int(top[i] + (bot[i] - top[i]) * t) for i in range(3))
+            pygame.draw.line(surf, c, (0, y), (SCREEN_WIDTH, y))
+        return surf
+
+    def start_balloon_mode(self):
+        """Enter the balloon letter game."""
+        self.state = AppState.BALLOON_GAME
+        self.current_mode = GameMode.BALLOONS
+        bg = self.balloon_game
+        bg['active'] = True
+        bg['score'] = 0
+        bg['balloons'] = []
+        bg['stop_flag'] = False
+        bg['mic_status'] = 'starting'
+        bg['next_id'] = 0
+
+        # Generate gradient once and cache it
+        if bg['sky_surface'] is None:
+            bg['sky_surface'] = self._make_sky_gradient()
+
+        # Distribute 5 balloons across the screen height at startup
+        top_bar_h = int(SCREEN_HEIGHT * 0.10)
+        hint_h    = int(SCREEN_HEIGHT * 0.08)
+        area_h    = SCREEN_HEIGHT - top_bar_h - hint_h
+        for i in range(5):
+            b = self._create_balloon()
+            frac = (i + 0.5) / 5
+            b.y = (SCREEN_HEIGHT - hint_h) - area_h * frac
+
+        self._start_balloon_listening()
+        log.info("Balloon mode started")
+
+    def exit_balloon_mode(self):
+        """Stop balloon game and return to mode select."""
+        bg = self.balloon_game
+        bg['active'] = False
+        bg['stop_flag'] = True
+        bg['balloons'] = []
+        try:
+            pygame.mixer.music.stop()
+        except Exception:
+            pass
+        self.state = AppState.MODE_SELECT
+        self.current_mode = None
+        log.info("Balloon mode exited")
+
+    def _create_balloon(self) -> Balloon:
+        """Spawn a new balloon at the bottom of the play area."""
+        data   = random.choice(BALLOON_LETTERS)
+        color  = random.choice(BALLOON_COLORS)
+        hint_h = int(SCREEN_HEIGHT * 0.08)
+
+        x = random.uniform(self.bln_body_w * 0.8,
+                            SCREEN_WIDTH - self.bln_body_w * 0.8)
+        y = float(SCREEN_HEIGHT - hint_h + self.bln_body_h)  # just below visible area
+
+        b = Balloon(
+            id=self.balloon_game['next_id'],
+            letter=data['letter'],
+            tts_name=data['tts_name'],
+            match_names=data['match_names'],
+            x=x, y=y,
+            speed=random.uniform(SCREEN_HEIGHT * 0.068, SCREEN_HEIGHT * 0.135),
+            drift_amp=random.uniform(SCREEN_WIDTH * 0.022, SCREEN_WIDTH * 0.052),
+            drift_freq=random.uniform(0.28, 0.62),
+            drift_phase=random.uniform(0, 2 * math.pi),
+            color=color,
+        )
+        self.balloon_game['next_id'] += 1
+        self.balloon_game['balloons'].append(b)
+        return b
+
+    def _update_balloons(self, dt: float):
+        """Advance all balloon positions and pop animations each frame."""
+        if not self.balloon_game['active']:
+            return
+
+        top_bar_h = int(SCREEN_HEIGHT * 0.10)
+        exit_y    = top_bar_h - self.bln_body_h  # remove when centre passes here
+
+        to_remove = []
+        for b in self.balloon_game['balloons']:
+            b.age += dt
+
+            if b.popping:
+                b.pop_progress += dt / 0.38   # 380 ms pop animation
+                if b.pop_progress >= 1.0:
+                    to_remove.append(b)
+                continue
+
+            b.y -= b.speed * dt
+            if b.y < exit_y:
+                to_remove.append(b)
+
+        for b in to_remove:
+            if b in self.balloon_game['balloons']:
+                self.balloon_game['balloons'].remove(b)
+            self._create_balloon()  # immediate replacement
+
+    def _pop_balloon(self, balloon: Balloon):
+        """Trigger pop animation, update score, speak letter name."""
+        if balloon.popping:
+            return
+        balloon.popping = True
+        balloon.pop_progress = 0.0
+        self.balloon_game['score'] += 1
+        log.info(f"Popped {balloon.letter} | score={self.balloon_game['score']}")
+        self._balloon_speak(balloon.tts_name)
+
+    def _match_and_pop_balloon(self, transcript: str) -> bool:
+        """Find first balloon whose name appears in transcript and pop it."""
+        text = transcript.strip()
+        for b in self.balloon_game['balloons']:
+            if b.popping:
+                continue
+            for name in b.match_names:
+                if name in text:
+                    self._pop_balloon(b)
+                    return True
+        return False
+
+    def _balloon_speak(self, text: str):
+        """Speak a Hebrew letter name non-blocking (uses a separate temp file)."""
+        if not HAS_GTTS:
+            return
+        def speak():
+            try:
+                tts = gTTS(text=text, lang='he', slow=False)
+                tts.save(self.temp_balloon_tts)
+                pygame.mixer.music.load(self.temp_balloon_tts)
+                pygame.mixer.music.play()
+            except Exception as e:
+                log.error(f"Balloon TTS error: {e}")
+        threading.Thread(target=speak, daemon=True).start()
+
+    def _start_balloon_listening(self):
+        """Launch the continuous recognition thread."""
+        self.balloon_game['listening'] = True
+        threading.Thread(target=self._balloon_listen_loop, daemon=True).start()
+
+    def _balloon_listen_loop(self):
+        """Continuous: listen → Google Speech → match balloon. Runs in its own thread."""
+        try:
+            with sr.Microphone() as source:
+                self.recognizer.adjust_for_ambient_noise(source, duration=0.4)
+                self.balloon_game['mic_status'] = 'listening'
+                log.info("Balloon recognition loop running")
+
+                while (self.balloon_game['active'] and
+                       not self.balloon_game['stop_flag']):
+                    try:
+                        audio = self.recognizer.listen(
+                            source, timeout=5, phrase_time_limit=3
+                        )
+                        self.balloon_game['mic_status'] = 'processing'
+                        # Process in its own thread so the mic reopens immediately
+                        threading.Thread(
+                            target=self._process_balloon_audio,
+                            args=(audio,), daemon=True
+                        ).start()
+                        self.balloon_game['mic_status'] = 'listening'
+                    except sr.WaitTimeoutError:
+                        self.balloon_game['mic_status'] = 'listening'
+                    except Exception as e:
+                        log.error(f"Balloon listen error: {e}")
+                        self.balloon_game['mic_status'] = 'error'
+                        break
+        except Exception as e:
+            log.error(f"Balloon microphone error: {e}")
+            self.balloon_game['mic_status'] = 'error'
+        finally:
+            self.balloon_game['listening'] = False
+            log.info("Balloon recognition loop stopped")
+
+    def _process_balloon_audio(self, audio):
+        """Recognize speech and try to pop a matching balloon."""
+        try:
+            text = self.recognizer.recognize_google(audio, language='he-IL')
+            log.info(f"Balloon heard: '{text}'")
+            self._match_and_pop_balloon(text)
+        except sr.UnknownValueError:
+            pass
+        except sr.RequestError as e:
+            log.error(f"Balloon SR request error: {e}")
+        except Exception as e:
+            log.error(f"Balloon audio error: {e}")
+
+    def _draw_balloon(self, b: Balloon):
+        """Render one balloon with its letter, shine highlight, knot and string."""
+        # Compute display x including sinusoidal horizontal drift
+        drift = math.sin(b.age * b.drift_freq * 2 * math.pi + b.drift_phase) * b.drift_amp
+        cx = int(b.x + drift)
+        cy = int(b.y)
+
+        # Scale for pop animation: grow then shrink to zero
+        if b.popping:
+            t = b.pop_progress
+            scale = (1.0 + 0.38 * (t / 0.4)) if t < 0.4 else (1.38 * max(0.0, 1.0 - (t - 0.4) / 0.6))
+        else:
+            scale = 1.0
+        if scale <= 0.02:
+            return
+
+        w = max(4, int(self.bln_body_w * scale))
+        h = max(4, int(self.bln_body_h * scale))
+
+        # Keep balloon horizontally inside screen
+        cx = max(w // 2, min(SCREEN_WIDTH - w // 2, cx))
+
+        # Balloon body (ellipse)
+        body_rect = pygame.Rect(cx - w // 2, cy - h // 2, w, h)
+        pygame.draw.ellipse(self.screen, b.color, body_rect)
+
+        # Shine highlight (upper-left quadrant, lighter colour)
+        light = tuple(min(255, c + 65) for c in b.color)
+        hl = pygame.Rect(cx - w // 2 + w // 6, cy - h // 2 + h // 9, w // 3, h // 3)
+        pygame.draw.ellipse(self.screen, light, hl)
+
+        # Knot at bottom tip of balloon
+        knot_h = max(3, int(9 * scale))
+        knot_rect = pygame.Rect(cx - int(5 * scale), cy + h // 2 - 2,
+                                int(10 * scale), knot_h)
+        pygame.draw.ellipse(self.screen, b.color, knot_rect)
+
+        # String
+        if scale > 0.2:
+            str_top = cy + h // 2 + knot_h - 2
+            str_len = max(5, int(SCREEN_HEIGHT * 0.038 * scale))
+            pygame.draw.line(self.screen, (70, 50, 50),
+                             (cx, str_top), (cx, str_top + str_len),
+                             max(1, int(2 * scale)))
+
+        # Letter text centred on balloon body
+        if scale > 0.15:
+            fsize = max(10, int(self.bln_body_h * 0.52 * scale))
+            try:
+                font = pygame.font.Font(self.font_path, fsize)
+            except Exception:
+                font = self.bln_letter_font
+            letter_surf = font.render(prepare_hebrew_text(b.letter), True, WHITE)
+            self.screen.blit(letter_surf, letter_surf.get_rect(center=(cx, cy)))
+
+    def _draw_balloon_screen(self):
+        """Render the full balloon game screen."""
+        bg = self.balloon_game
+        top_bar_h = int(SCREEN_HEIGHT * 0.10)
+        hint_h    = int(SCREEN_HEIGHT * 0.08)
+        margin    = int(min(SCREEN_WIDTH, SCREEN_HEIGHT) * 0.04)
+
+        # Sky gradient background
+        if bg['sky_surface']:
+            self.screen.blit(bg['sky_surface'], (0, 0))
+        else:
+            self.screen.fill((173, 216, 230))
+
+        # --- Top bar (white panel) ---
+        pygame.draw.rect(self.screen, (240, 248, 255),
+                         pygame.Rect(0, 0, SCREEN_WIDTH, top_bar_h))
+        pygame.draw.line(self.screen, BRIGHT_BLUE,
+                         (0, top_bar_h), (SCREEN_WIDTH, top_bar_h), 3)
+
+        # Back button
+        pygame.draw.rect(self.screen, BRIGHT_BLUE, self.back_button_rect, border_radius=15)
+        back_surf = self.small_font.render(
+            prepare_hebrew_text('← חזרה'), True, WHITE)
+        self.screen.blit(back_surf, back_surf.get_rect(center=self.back_button_rect.center))
+
+        # Score pill (centred in top bar)
+        score_str  = f"★ {bg['score']}"
+        score_surf = self.bln_score_font.render(score_str, True, (200, 120, 10))
+        pill = score_surf.get_rect(center=(SCREEN_WIDTH // 2, top_bar_h // 2))
+        pill_bg = pill.inflate(28, 10)
+        pygame.draw.rect(self.screen, WHITE, pill_bg, border_radius=14)
+        pygame.draw.rect(self.screen, (243, 156, 18), pill_bg, width=3, border_radius=14)
+        self.screen.blit(score_surf, pill)
+
+        # Mic-status indicator (right side, coloured circle)
+        status_colors = {
+            'off': GRAY, 'starting': BRIGHT_YELLOW,
+            'listening': BRIGHT_GREEN, 'processing': BRIGHT_YELLOW, 'error': BRIGHT_RED,
+        }
+        mic_color = status_colors.get(bg.get('mic_status', 'off'), GRAY)
+        mic_cx = SCREEN_WIDTH - self.back_button_rect.width // 2 - margin
+        mic_cy = top_bar_h // 2
+        mic_r  = int(top_bar_h * 0.33)
+        pygame.draw.circle(self.screen, mic_color, (mic_cx, mic_cy), mic_r)
+        mic_label = self.small_font.render('mic', True, WHITE)
+        self.screen.blit(mic_label, mic_label.get_rect(center=(mic_cx, mic_cy)))
+
+        # --- Balloons ---
+        for b in list(bg['balloons']):
+            self._draw_balloon(b)
+
+        # --- Hint bar at bottom ---
+        hint_rect = pygame.Rect(0, SCREEN_HEIGHT - hint_h, SCREEN_WIDTH, hint_h)
+        pygame.draw.rect(self.screen, (240, 248, 255), hint_rect)
+        pygame.draw.line(self.screen, BRIGHT_BLUE,
+                         (0, SCREEN_HEIGHT - hint_h), (SCREEN_WIDTH, SCREEN_HEIGHT - hint_h), 3)
+        hint_text = prepare_hebrew_text('אמור את שם האות! (הקש על בלון לשמוע)')
+        hint_surf = self.bln_hint_font.render(hint_text, True, (50, 50, 80))
+        self.screen.blit(hint_surf, hint_surf.get_rect(
+            center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT - hint_h // 2)))
+
+    # ===========================================
     # DRAWING
     # ===========================================
     def _render_text(self, text: str, font: pygame.font.Font, color: tuple) -> pygame.Surface:
@@ -948,8 +1355,9 @@ class HebrewVoiceApp:
         # Mode buttons
         mode_configs = [
             (GameMode.FREE_SPEECH, BRIGHT_GREEN, 'FREE_SPEECH', True),
-            (GameMode.SPELLING, CORAL, 'SPELLING', True),
-            (GameMode.TRANSLATION, TEAL, 'TRANSLATION', True),
+            (GameMode.SPELLING,    CORAL,         'SPELLING',    True),
+            (GameMode.TRANSLATION, TEAL,          'TRANSLATION', True),
+            (GameMode.BALLOONS,    ORANGE,         'BALLOONS',    True),
         ]
 
         for mode, color, text_key, enabled in mode_configs:
@@ -1219,10 +1627,33 @@ class HebrewVoiceApp:
         if self.state == AppState.MODE_SELECT:
             for mode, rect in self.mode_buttons.items():
                 if rect.collidepoint(pos):
-                    if mode in [GameMode.FREE_SPEECH, GameMode.SPELLING, GameMode.TRANSLATION]:
+                    if mode == GameMode.BALLOONS:
+                        self.start_balloon_mode()
+                    elif mode in [GameMode.FREE_SPEECH, GameMode.SPELLING, GameMode.TRANSLATION]:
                         self.current_mode = mode
                         self.state = AppState.READY
                         log.info(f"Selected mode: {mode.value}")
+                    return
+
+        elif self.state == AppState.BALLOON_GAME:
+            # Back button exits balloon mode
+            if self.back_button_rect.collidepoint(pos):
+                self.exit_balloon_mode()
+                return
+            # Tap a balloon → speak its letter name (learning hint)
+            for b in self.balloon_game['balloons']:
+                if b.popping:
+                    continue
+                # Ellipse hit-test with a bit of padding
+                drift = math.sin(b.age * b.drift_freq * 2 * math.pi + b.drift_phase) * b.drift_amp
+                cx = int(b.x + drift)
+                cy = int(b.y)
+                dx = pos[0] - cx
+                dy = pos[1] - cy
+                half_w = self.bln_body_w / 2 * 1.2   # 20% extra touch area
+                half_h = self.bln_body_h / 2 * 1.2
+                if (dx / half_w) ** 2 + (dy / half_h) ** 2 <= 1.0:
+                    self._balloon_speak(b.tts_name)
                     return
 
         else:
@@ -1297,12 +1728,17 @@ class HebrewVoiceApp:
         running = True
 
         while running:
+            self._last_dt = self.clock.tick(60) / 1000.0  # seconds since last frame
+
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
-                        running = False
+                        if self.state == AppState.BALLOON_GAME:
+                            self.exit_balloon_mode()
+                        else:
+                            running = False
                     elif event.key == pygame.K_SPACE:
                         if self.state == AppState.MODE_SELECT:
                             self._handle_touch(self.mode_buttons[GameMode.FREE_SPEECH].center)
@@ -1336,24 +1772,33 @@ class HebrewVoiceApp:
                 log.info("Continuous mode: restarting listening")
                 self._record_audio()
 
+            # Balloon animation update
+            if self.state == AppState.BALLOON_GAME:
+                self._update_balloons(self._last_dt)
+
             # Draw
             self.screen.fill(SOFT_BACKGROUND)
 
             if self.state == AppState.MODE_SELECT:
                 self._draw_mode_select()
+            elif self.state == AppState.BALLOON_GAME:
+                self._draw_balloon_screen()
             else:
                 self._draw_game_screen()
 
             pygame.display.flip()
-            self.clock.tick(60)
+            # Note: clock.tick(60) is now at the top of the loop
 
         # Cleanup
+        if self.state == AppState.BALLOON_GAME:
+            self.exit_balloon_mode()
         self.audio.terminate()
         pygame.quit()
         try:
             os.unlink(self.temp_wav)
             os.unlink(self.temp_tts)
-        except:
+            os.unlink(self.temp_balloon_tts)
+        except Exception:
             pass
 
 
