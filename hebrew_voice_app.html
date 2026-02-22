@@ -1716,31 +1716,32 @@
             '#EC407A', '#26A69A'
         ];
 
-        // 22 Hebrew letters: ttsName has niqqud for clear TTS, matchNames are
-        // what the he-IL speech recognizer returns when a child says the name.
+        // 22 Hebrew letters: ttsName has niqqud for clear TTS, matchNames covers
+        // all the forms Google he-IL actually returns when a child says the name
+        // (common-word collisions like בית=house, דלת=door are fine here).
         const BALLOON_LETTERS = [
-            { letter: 'א', ttsName: 'אָלֶף',  matchNames: ['אלף'] },
-            { letter: 'ב', ttsName: 'בֵּית',  matchNames: ['בית', 'בת'] },
-            { letter: 'ג', ttsName: 'גִּימֶל', matchNames: ['גימל', 'גמל'] },
-            { letter: 'ד', ttsName: 'דָּלֶת',  matchNames: ['דלת'] },
-            { letter: 'ה', ttsName: 'הֵא',     matchNames: ['הא', 'הה'] },
-            { letter: 'ו', ttsName: 'וָו',     matchNames: ['וו', 'ואו', 'ווי'] },
-            { letter: 'ז', ttsName: 'זַיִן',   matchNames: ['זין', 'זיין'] },
-            { letter: 'ח', ttsName: 'חֵית',    matchNames: ['חית', 'חת'] },
-            { letter: 'ט', ttsName: 'טֵית',    matchNames: ['טית', 'טת'] },
-            { letter: 'י', ttsName: 'יוֹד',    matchNames: ['יוד'] },
-            { letter: 'כ', ttsName: 'כָּף',    matchNames: ['כף'] },
-            { letter: 'ל', ttsName: 'לָמֶד',   matchNames: ['למד'] },
-            { letter: 'מ', ttsName: 'מֵם',     matchNames: ['מם'] },
-            { letter: 'נ', ttsName: 'נוּן',    matchNames: ['נון'] },
-            { letter: 'ס', ttsName: 'סָמֶך',   matchNames: ['סמך'] },
-            { letter: 'ע', ttsName: 'עַיִן',   matchNames: ['עין', 'עיין'] },
-            { letter: 'פ', ttsName: 'פֵּא',    matchNames: ['פא', 'פה'] },
-            { letter: 'צ', ttsName: 'צָדִי',   matchNames: ['צדי', 'צד'] },
-            { letter: 'ק', ttsName: 'קוֹף',    matchNames: ['קוף'] },
-            { letter: 'ר', ttsName: 'רֵישׁ',   matchNames: ['ריש'] },
-            { letter: 'ש', ttsName: 'שִׁין',   matchNames: ['שין'] },
-            { letter: 'ת', ttsName: 'תָּו',    matchNames: ['תו', 'תב'] },
+            { letter: 'א', ttsName: 'אָלֶף',  matchNames: ['אלף', 'אל'] },
+            { letter: 'ב', ttsName: 'בֵּית',  matchNames: ['בית', 'בת', 'בי'] },
+            { letter: 'ג', ttsName: 'גִּימֶל', matchNames: ['גימל', 'גמל', 'גימ'] },
+            { letter: 'ד', ttsName: 'דָּלֶת',  matchNames: ['דלת', 'דל'] },
+            { letter: 'ה', ttsName: 'הֵא',     matchNames: ['הא', 'הה', 'הי', 'הע'] },
+            { letter: 'ו', ttsName: 'וָו',     matchNames: ['וו', 'ואו', 'ווי', 'וי', 'וואו'] },
+            { letter: 'ז', ttsName: 'זַיִן',   matchNames: ['זין', 'זיין', 'זי'] },
+            { letter: 'ח', ttsName: 'חֵית',    matchNames: ['חית', 'חת', 'חי', 'חיית'] },
+            { letter: 'ט', ttsName: 'טֵית',    matchNames: ['טית', 'טת', 'טי', 'טיית'] },
+            { letter: 'י', ttsName: 'יוֹד',    matchNames: ['יוד', 'יד', 'יו'] },
+            { letter: 'כ', ttsName: 'כָּף',    matchNames: ['כף', 'כף סופית', 'כפ'] },
+            { letter: 'ל', ttsName: 'לָמֶד',   matchNames: ['למד', 'למ'] },
+            { letter: 'מ', ttsName: 'מֵם',     matchNames: ['מם', 'מן', 'מי'] },
+            { letter: 'נ', ttsName: 'נוּן',    matchNames: ['נון', 'נן', 'נו'] },
+            { letter: 'ס', ttsName: 'סָמֶך',   matchNames: ['סמך', 'סמכ', 'סמ', 'סמק'] },
+            { letter: 'ע', ttsName: 'עַיִן',   matchNames: ['עין', 'עיין', 'עי'] },
+            { letter: 'פ', ttsName: 'פֵּא',    matchNames: ['פא', 'פה', 'פי', 'פאה'] },
+            { letter: 'צ', ttsName: 'צָדִי',   matchNames: ['צדי', 'צד', 'צ', 'צדיק'] },
+            { letter: 'ק', ttsName: 'קוֹף',    matchNames: ['קוף', 'קף', 'קו'] },
+            { letter: 'ר', ttsName: 'רֵישׁ',   matchNames: ['ריש', 'רש', 'ראש', 'רי'] },
+            { letter: 'ש', ttsName: 'שִׁין',   matchNames: ['שין', 'שן', 'שי', 'שיין'] },
+            { letter: 'ת', ttsName: 'תָּו',    matchNames: ['תו', 'תב', 'תי', 'תאו'] },
         ];
 
         let balloonGame = {
@@ -1850,9 +1851,9 @@
                 letterData,
                 x,
                 y: startY,
-                speed: 7 + Math.random() * 7,        // % per second upward
+                speed: 2.2 + Math.random() * 2.0,   // % per second upward (slow — toddler-friendly)
                 driftAmp: 1.5 + Math.random() * 2.5, // horizontal oscillation amplitude (%)
-                driftFreq: 0.28 + Math.random() * 0.35, // Hz
+                driftFreq: 0.15 + Math.random() * 0.20, // Hz (gentler sway)
                 driftPhase: Math.random() * Math.PI * 2,
                 color,
                 element: el,
@@ -1959,10 +1960,10 @@
             }
 
             const recog = new SpeechRecognition();
-            recog.lang = 'he-IL'; // always Hebrew — balloon mode is alef-bet only
-            recog.continuous = false;
-            recog.interimResults = true;
-            recog.maxAlternatives = 3;
+            recog.lang = 'he-IL';
+            recog.continuous = true;     // mic stays open — no gaps between phrases
+            recog.interimResults = true; // fire on partial results for faster response
+            recog.maxAlternatives = 5;  // check more hypotheses per utterance
             balloonGame.recognition = recog;
 
             recog.onstart = () => {
@@ -1971,6 +1972,7 @@
 
             recog.onresult = (event) => {
                 for (let i = event.resultIndex; i < event.results.length; i++) {
+                    // Check all recognition alternatives
                     for (let j = 0; j < event.results[i].length; j++) {
                         if (matchAndPopBalloon(event.results[i][j].transcript)) return;
                     }
@@ -1983,15 +1985,16 @@
                     document.getElementById('balloonMicStatus').textContent = '🚫';
                     return;
                 }
+                // On 'no-speech' or network errors just restart
                 if (balloonGame.active) {
-                    setTimeout(() => { if (balloonGame.active) startBalloonRecognition(); }, 700);
+                    setTimeout(() => { if (balloonGame.active) startBalloonRecognition(); }, 400);
                 }
             };
 
+            // continuous mode can still end (browser silence timeout, mobile tab switch, etc.)
             recog.onend = () => {
-                // Keep the mic always open — restart immediately
                 if (balloonGame.active) {
-                    setTimeout(() => { if (balloonGame.active) startBalloonRecognition(); }, 150);
+                    setTimeout(() => { if (balloonGame.active) startBalloonRecognition(); }, 80);
                 }
             };
 
@@ -1999,7 +2002,7 @@
                 recog.start();
             } catch (e) {
                 if (balloonGame.active) {
-                    setTimeout(() => { if (balloonGame.active) startBalloonRecognition(); }, 600);
+                    setTimeout(() => { if (balloonGame.active) startBalloonRecognition(); }, 500);
                 }
             }
         }
